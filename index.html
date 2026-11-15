@@ -97,6 +97,13 @@ button{touch-action:manipulation}
     Il browser non permette di salvare i dati in modo permanente (finestra anonima o archiviazione bloccata). Usa “Backup” prima di chiudere.
   </div>
 
+<style>
+.hint{font-size:12px;color:var(--muted);margin-top:8px}
+label.chk{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--text)}
+label.chk input{width:20px;height:20px;padding:0}
+.chartbar .sep{width:12px}
+td.sub{color:var(--muted)}
+</style>
   <!-- Profilo -->
   <section class="card" id="profileCard">
     <h2 id="profileTitle">Dati del bambino</h2>
@@ -104,7 +111,16 @@ button{touch-action:manipulation}
       <label>Nome<input id="pName" placeholder="es. Maria" style="width:160px"></label>
       <label>Sesso<select id="pSex"><option value="F">Femmina</option><option value="M">Maschio</option></select></label>
       <label>Data di nascita<input type="date" id="pBirth"></label>
+      <label>Nato/a alla settimana<select id="pGaW"></select></label>
+      <label>+ giorni<select id="pGaD"></select></label>
       <label>Peso alla nascita (g)<input type="number" id="pBW" inputmode="numeric" min="300" max="7000" step="1" style="width:130px"></label>
+      <label>Lunghezza alla nascita (cm)<input type="text" id="pBL" inputmode="decimal" placeholder="es. 50,5 (facoltativa)" style="width:150px"></label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="chk"><input type="checkbox" id="pCorr"> Usa l'età corretta per i percentili</label>
+    </div>
+    <div class="hint" id="pCorrHint">Età corretta = età dalla nascita meno le settimane mancanti alle 40. Di norma i pediatri la usano per i nati prima delle 37 settimane, fino ai 2 anni.</div>
+    <div class="row" style="margin-top:12px">
       <button id="btnSaveProfile">Salva</button>
       <button id="btnDelBaby" class="danger">Elimina bambino</button>
     </div>
@@ -118,20 +134,27 @@ button{touch-action:manipulation}
       <div class="alerts" id="alerts"></div>
     </section>
 
-    <!-- Nuova pesata -->
+    <!-- Nuova misurazione -->
     <section class="card">
-      <h2>Nuova pesata</h2>
+      <h2>Nuova misurazione</h2>
       <div class="row">
         <label>Data<input type="date" id="mDate"></label>
         <label>Peso (g)<input type="number" id="mWeight" inputmode="numeric" min="300" max="30000" step="1" style="width:130px" placeholder="es. 3450"></label>
+        <label>Lunghezza (cm)<input type="text" id="mLength" inputmode="decimal" style="width:130px" placeholder="es. 52,5"></label>
+        <label>Latte artificiale aggiunto (ml/giorno)<input type="number" id="mFormula" inputmode="numeric" min="0" max="2000" step="1" style="width:130px" placeholder="es. 120"></label>
         <label style="flex:1;min-width:200px">Nota (facoltativa)<input id="mNote" placeholder="es. dopo la poppata, visita pediatra…"></label>
         <button id="btnAdd">Aggiungi</button>
       </div>
+      <div class="hint">Compila solo i campi che ti servono (peso, lunghezza, latte o una combinazione). La lunghezza si misura sdraiata, di solito dal pediatra. Per il latte artificiale indica il totale aggiunto nella giornata (0 = solo latte materno).</div>
     </section>
 
     <!-- Grafico -->
     <section class="card">
-      <h2>Curva di crescita (percentili OMS peso/età)</h2>
+      <h2>Curve di crescita (percentili OMS)</h2>
+      <div class="chartbar" id="chartKind">
+        <button class="sec" data-k="w">Peso</button>
+        <button class="sec" data-k="l">Lunghezza</button>
+      </div>
       <div class="chartbar" id="chartRange">
         <button class="sec" data-r="auto">Auto</button>
         <button class="sec" data-r="1">1 mese</button>
@@ -145,13 +168,13 @@ button{touch-action:manipulation}
         <span style="background:var(--band-outer)"></span>3°–97° percentile
         <span style="background:var(--band-inner)"></span>15°–85° percentile
         <span style="background:var(--p50);height:3px"></span>50° (mediana)
-        <span style="background:var(--point);border-radius:50%;width:10px"></span>pesate
+        <span style="background:var(--point);border-radius:50%;width:10px"></span>misurazioni
       </div>
     </section>
 
     <!-- Tabella -->
     <section class="card">
-      <h2>Storico pesate</h2>
+      <h2>Storico misurazioni</h2>
       <div class="tablewrap"><table id="tbl"></table></div>
       <div class="row" style="margin-top:12px">
         <button class="sec" id="btnCsv">Esporta CSV (Excel)</button>
@@ -162,14 +185,15 @@ button{touch-action:manipulation}
 
   <div class="foot">
     I dati restano solo su questo dispositivo. Fai un <b>Backup</b> ogni tanto (puoi salvarlo in File/iCloud o inviarlo per WhatsApp o email).<br>
-    Percentili: WHO Child Growth Standards, peso per età 0–24 mesi. Strumento indicativo: non sostituisce la valutazione del pediatra.
+    Percentili: WHO Child Growth Standards, peso e lunghezza per età 0–24 mesi. Strumento indicativo: non sostituisce la valutazione del pediatra.
     <div id="lastBackup"></div>
   </div>
 </main>
 
 <script>
-/* ===== WHO weight-for-age LMS, 0–24 mesi (L, M, S) ===== */
-const WHO = {
+/* ===== Tabelle OMS (L, M, S) per età in mesi 0–24 ===== */
+// Peso per età (kg)
+const WFA = {
  M:[[0.3487,3.3464,0.14602],[0.2297,4.4709,0.13395],[0.1970,5.5675,0.12385],[0.1738,6.3762,0.11727],[0.1553,7.0023,0.11316],
     [0.1395,7.5105,0.11080],[0.1257,7.9340,0.10958],[0.1134,8.2970,0.10902],[0.1021,8.6151,0.10882],[0.0917,8.9014,0.10881],
     [0.0820,9.1649,0.10891],[0.0730,9.4122,0.10906],[0.0644,9.6479,0.10925],[0.0563,9.8749,0.10949],[0.0487,10.0953,0.10976],
@@ -181,22 +205,33 @@ const WHO = {
     [-0.2384,9.6008,0.12299],[-0.2478,9.8124,0.12303],[-0.2562,10.0226,0.12306],[-0.2637,10.2315,0.12309],[-0.2703,10.4393,0.12315],
     [-0.2762,10.6464,0.12323],[-0.2815,10.8534,0.12335],[-0.2862,11.0608,0.12350],[-0.2903,11.2688,0.12369],[-0.2941,11.4775,0.12390]]
 };
-const DAYS_PER_MONTH = 30.4375;
-const DEFAULT_BABY = null; // nessun dato personale nel sito pubblico
+// Lunghezza per età (cm), L = 1
+const LFA = {
+ M:[[49.8842,0.03795],[54.7244,0.03557],[58.4249,0.03424],[61.4292,0.03328],[63.8860,0.03257],[65.9026,0.03204],[67.6236,0.03165],
+    [69.1645,0.03139],[70.5994,0.03124],[71.9687,0.03117],[73.2812,0.03118],[74.5388,0.03125],[75.7488,0.03137],[76.9186,0.03154],
+    [78.0497,0.03174],[79.1458,0.03197],[80.2113,0.03222],[81.2487,0.03250],[82.2587,0.03279],[83.2418,0.03310],[84.1996,0.03342],
+    [85.1348,0.03376],[86.0477,0.03410],[86.9410,0.03445],[87.8161,0.03479]].map(r=>[1,...r]),
+ F:[[49.1477,0.03790],[53.6872,0.03640],[57.0673,0.03568],[59.8029,0.03520],[62.0899,0.03486],[64.0301,0.03463],[65.7311,0.03448],
+    [67.2873,0.03441],[68.7498,0.03440],[70.1435,0.03444],[71.4818,0.03452],[72.7710,0.03464],[74.0150,0.03479],[75.2176,0.03496],
+    [76.3817,0.03514],[77.5099,0.03534],[78.6055,0.03555],[79.6710,0.03576],[80.7079,0.03598],[81.7182,0.03620],[82.7036,0.03643],
+    [83.6654,0.03666],[84.6040,0.03688],[85.5202,0.03711],[86.4153,0.03734]].map(r=>[1,...r])
+};
+const DAYS_PER_MONTH = 30.4375, TERM = 280;
 const PCT = [{p:3,z:-1.881},{p:15,z:-1.036},{p:50,z:0},{p:85,z:1.036},{p:97,z:1.881}];
 
-function lms(sex, months){
-  const t = WHO[sex]; months = Math.max(0, Math.min(24, months));
+function lms(T, sex, months){
+  const t = T[sex]; months = Math.max(0, Math.min(24, months));
   const i = Math.min(23, Math.floor(months)), f = months - i;
   return t[i].map((v,k)=> v + (t[i+1][k]-v)*f);
 }
-function weightAtZ(sex, months, z){ const [L,M,S]=lms(sex,months); return M*Math.pow(1+L*S*z,1/L); }
-function zOf(sex, months, kg){ const [L,M,S]=lms(sex,months); return (Math.pow(kg/M,L)-1)/(L*S); }
+function valAtZ(T, sex, months, z){ const [L,M,S]=lms(T,sex,months); return M*Math.pow(1+L*S*z,1/L); }
+function zOf(T, sex, months, x){ const [L,M,S]=lms(T,sex,months); return (Math.pow(x/M,L)-1)/(L*S); }
 function normCdf(z){ // Abramowitz-Stegun
   const t=1/(1+0.2316419*Math.abs(z)), d=0.3989423*Math.exp(-z*z/2);
   let p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));
   return z>0?1-p:p;
 }
+const pctTxt = z => { if(z==null) return '—'; const v=normCdf(z)*100; return (v<1?'<1':v>99?'>99':Math.round(v))+'°'; };
 
 /* ===== Stato e salvataggio ===== */
 const KEY='crescitaNeonato.v1';
@@ -204,7 +239,7 @@ let storageOk = true;
 function load(){ try{ return JSON.parse(localStorage.getItem(KEY)); }catch(e){ storageOk=false; return null; } }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){ storageOk=false; showStorageWarn(); } }
 function showStorageWarn(){ document.getElementById('storageWarn').classList.toggle('hidden', storageOk); }
-let state = load() || {babies:[], current:null, range:'auto', lastBackup:null};
+let state = load() || {babies:[], current:null, range:'auto', chartKind:'w', lastBackup:null};
 try{ localStorage.setItem(KEY+'.test','1'); localStorage.removeItem(KEY+'.test'); }catch(e){ storageOk=false; }
 
 const $ = id => document.getElementById(id);
@@ -215,27 +250,43 @@ const dayNum = s => Date.UTC(+s.slice(0,4), +s.slice(5,7)-1, +s.slice(8,10))/864
 const fmtDate = s => s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4);
 const fmtG = g => Math.round(g).toLocaleString('it-IT')+' g';
 const fmtKg = g => (g/1000).toLocaleString('it-IT',{minimumFractionDigits:3,maximumFractionDigits:3})+' kg';
+const fmtCm = c => c.toLocaleString('it-IT',{maximumFractionDigits:1})+' cm';
+const num = s => { s=String(s??'').trim().replace(',','.'); return s===''?null:+s; };
 const signed = (v,suf) => (v>0?'+':v<0?'−':'')+Math.abs(Math.round(v)).toLocaleString('it-IT')+suf;
+const signed1 = (v,suf) => (v>0?'+':v<0?'−':'')+Math.abs(v).toLocaleString('it-IT',{maximumFractionDigits:1})+suf;
 function fmtAge(days){
-  if(days<0) return '—';
+  if(days<0) return '−'+fmtAge(-days);
   if(days<14) return days+' gg';
   if(days<92){ const w=Math.floor(days/7), d=days%7; return w+' sett'+(d?' '+d+' gg':''); }
   const m=Math.floor(days/DAYS_PER_MONTH), d=Math.round(days-m*DAYS_PER_MONTH);
   return m+' mesi'+(d?' '+d+' gg':'');
 }
 const baby = () => state.babies.find(b=>b.id===state.current);
+const gaDaysOf = b => (b.gaWeeks??40)*7 + (b.gaDays??0);
+const gaTxt = b => (b.gaWeeks??40)+'+'+(b.gaDays??0);
+// giorni da sottrarre all'età per ottenere l'età corretta
+const corrDays = b => b.corrected ? Math.max(0, TERM - gaDaysOf(b)) : 0;
 
-/* Punti: nascita + pesate, ordinati */
+/* Punti: nascita + misurazioni, ordinati, con età e z-score */
 function points(b){
-  const pts = [{date:b.birth, weight:b.birthWeight, note:'Nascita', birth:true}];
-  b.measures.forEach(m=>pts.push(m));
-  pts.sort((a,c)=> a.date<c.date?-1:a.date>c.date?1:(a.birth?-1:1));
-  pts.forEach(p=>{ p.days = dayNum(p.date)-dayNum(b.birth); p.months = p.days/DAYS_PER_MONTH;
-    p.z = p.months<=24 ? zOf(b.sex,p.months,p.weight/1000) : null; });
+  const corr = corrDays(b);
+  const pts = [{date:b.birth, weight:b.birthWeight, length:b.birthLength||null, note:'Nascita', birth:true}];
+  b.measures.forEach(m=>pts.push({id:m.id, date:m.date, weight:m.weight||null, length:m.length||null, formula:(m.formula??null), note:m.note}));
+  pts.sort((a,c)=> a.date<c.date?-1:a.date>c.date?1:(a.birth?-1:c.birth?1:0));
+  pts.forEach(p=>{
+    p.days = dayNum(p.date)-dayNum(b.birth); p.cdays = p.days-corr; p.cm = p.cdays/DAYS_PER_MONTH;
+    const ok = p.cm>=0 && p.cm<=24;
+    p.zW = ok && p.weight ? zOf(WFA,b.sex,p.cm,p.weight/1000) : null;
+    p.zL = ok && p.length ? zOf(LFA,b.sex,p.cm,p.length) : null;
+  });
   return pts;
 }
 
 /* ===== Render ===== */
+function fillGaSelects(){
+  $('pGaW').innerHTML = Array.from({length:21},(_,i)=>22+i).map(w=>`<option value="${w}">${w}ª</option>`).join('');
+  $('pGaD').innerHTML = Array.from({length:7},(_,i)=>`<option value="${i}">${i}</option>`).join('');
+}
 function render(){
   showStorageWarn();
   const sel=$('babySel');
@@ -248,42 +299,62 @@ function render(){
   $('btnDelBaby').classList.toggle('hidden', !b);
   $('profileTitle').textContent = b ? 'Dati del bambino' : 'Inserisci i dati del bambino per iniziare';
   $('appTitle').textContent = '👶 ' + (b?.name ? 'Crescita di ' + b.name : 'Crescita Neonato');
-  const first = !b && !state.babies.length ? DEFAULT_BABY : null;
-  $('pName').value = b?.name || first?.name || ''; $('pSex').value = b?.sex || first?.sex || 'F';
-  $('pBirth').value = b?.birth || first?.birth || ''; $('pBW').value = b?.birthWeight || '';
+  $('pName').value = b?.name || ''; $('pSex').value = b?.sex || 'F';
+  $('pBirth').value = b?.birth || ''; $('pBW').value = b?.birthWeight || '';
+  $('pBL').value = b?.birthLength ? String(b.birthLength).replace('.',',') : '';
+  $('pGaW').value = b?.gaWeeks ?? 40; $('pGaD').value = b?.gaDays ?? 0;
+  $('pCorr').checked = b ? !!b.corrected : false;
   $('mainArea').classList.toggle('hidden', !b);
   if(!b) return;
   if(!$('mDate').value) $('mDate').value = today();
   const pts = points(b);
   renderKpis(b, pts); renderTable(b, pts); renderChart(b, pts);
   document.querySelectorAll('#chartRange button').forEach(x=>x.classList.toggle('on', x.dataset.r===String(state.range||'auto')));
+  document.querySelectorAll('#chartKind button').forEach(x=>x.classList.toggle('on', x.dataset.k===(state.chartKind||'w')));
 }
 
 function renderKpis(b, pts){
-  const last = pts[pts.length-1], ageNow = dayNum(today())-dayNum(b.birth);
+  const corr = corrDays(b), ga = gaDaysOf(b), ageNow = dayNum(today())-dayNum(b.birth), nat = b.sex==='M'?'Nato':'Nata';
+  const wp = pts.filter(p=>p.weight), lw = wp[wp.length-1];
+  const lp = pts.filter(p=>p.length), ll = lp[lp.length-1];
   const k = [];
-  k.push({l:'Età oggi', v:fmtAge(ageNow), s:'nato/a il '+fmtDate(b.birth)});
-  k.push({l:'Ultimo peso', v:fmtKg(last.weight), s:fmtDate(last.date)+' · '+fmtAge(last.days)});
-  k.push({l:'Dalla nascita', v:signed(last.weight-b.birthWeight,' g'), s:((last.weight/b.birthWeight-1)*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'% rispetto a '+fmtG(b.birthWeight)});
-  if(last.z!=null){
-    const pc = normCdf(last.z)*100;
-    k.push({l:'Percentile OMS', v:(pc<1?'<1':pc>99?'>99':Math.round(pc))+'°', s:'z-score '+last.z.toLocaleString('it-IT',{maximumFractionDigits:2})});
+  k.push({l:'Età oggi', v:fmtAge(ageNow), s: corr>0 ? 'età corretta '+fmtAge(ageNow-corr) : nat.toLowerCase()+' il '+fmtDate(b.birth)});
+  k.push({l:nat+' alla settimana', v:gaTxt(b), s: ga<259?'pretermine (prima delle 37)': ga<280?'a termine, prima delle 40': ga<=294?'a termine':'oltre termine'});
+  k.push({l:'Ultimo peso', v:fmtKg(lw.weight), s:fmtDate(lw.date)+' · '+fmtAge(lw.days)});
+  k.push({l:'Dalla nascita', v:signed(lw.weight-b.birthWeight,' g'), s:((lw.weight/b.birthWeight-1)*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'% rispetto a '+fmtG(b.birthWeight)});
+  k.push({l:'Percentile peso'+(corr>0?' (età corr.)':''), v:pctTxt(lw.zW),
+          s: lw.zW!=null ? 'z-score '+lw.zW.toLocaleString('it-IT',{maximumFractionDigits:2}) : (lw.cm<0?'non ancora a termine':'oltre i 24 mesi')});
+  let recW=null;
+  if(wp.length>1){
+    let ref = wp[0];
+    for(const p of wp){ if(p!==lw && lw.days-p.days>=7) ref=p; }
+    if(ref===lw) ref=wp[wp.length-2];
+    const dd = lw.days-ref.days;
+    if(dd>0){ const gday=(lw.weight-ref.weight)/dd; recW={ref,dd,gday};
+      k.push({l:'Crescita peso recente', v:signed(gday*7,' g/sett'), s:signed(gday,' g/giorno')+' dal '+fmtDate(ref.date)}); }
   }
-  // crescita settimanale ultime 2 settimane circa (dal punto più vicino a 14 gg prima)
-  if(pts.length>1){
-    let ref = pts[0];
-    for(const p of pts){ if(p!==last && last.days-p.days>=7) ref=p; }
-    if(ref===last) ref=pts[pts.length-2];
-    const dd = last.days-ref.days;
-    if(dd>0){ const gday=(last.weight-ref.weight)/dd;
-      k.push({l:'Crescita recente', v:signed(gday*7,' g/sett'), s:signed(gday,' g/giorno')+' dal '+fmtDate(ref.date)}); }
+  if(ll){
+    k.push({l:'Ultima lunghezza', v:fmtCm(ll.length), s:fmtDate(ll.date)+(lp.length>1?' · '+signed1(ll.length-lp[0].length,' cm')+' dal '+fmtDate(lp[0].date):'')});
+    k.push({l:'Percentile lunghezza'+(corr>0?' (età corr.)':''), v:pctTxt(ll.zL),
+            s: ll.zL!=null ? 'z-score '+ll.zL.toLocaleString('it-IT',{maximumFractionDigits:2}) : (ll.cm<0?'non ancora a termine':'oltre i 24 mesi')});
+  }
+  const fp = pts.filter(p=>p.formula!=null), lf = fp[fp.length-1];
+  if(lf){
+    const recent = fp.filter(p=>lf.days-p.days<7), avg = recent.reduce((a,p)=>a+p.formula,0)/recent.length;
+    k.push({l:'Latte artificiale', v:Math.round(lf.formula)+' ml/giorno', s:fmtDate(lf.date)+(recent.length>1?' · media 7 gg '+Math.round(avg)+' ml':'')});
   }
   $('kpis').innerHTML = k.map(x=>`<div class="kpi"><div class="l">${x.l}</div><div class="v">${x.v}</div><div class="s">${esc(x.s)}</div></div>`).join('');
 
-  /* Avvisi */
+  /* ---- Avvisi ---- */
   const al = [];
-  const early = pts.filter(p=>p.days<=21);
-  const minP = early.reduce((a,p)=>p.weight<a.weight?p:a, pts[0]);
+  // età gestazionale
+  if(corr>0) al.push(['ok', `${nat} a ${gaTxt(b)} settimane: i percentili usano l'età corretta (${fmtAge(corr)} in meno dell'età dalla nascita).`
+                      + (pts.some(p=>p.cm<0) ? ' Le misurazioni prima della data presunta del parto non hanno percentile OMS.' : '')]);
+  else if(ga<259) al.push(['warn', `${nat} pretermine (${gaTxt(b)} settimane) ma l'età corretta è disattivata: attivala nei dati del bambino per percentili più corretti.`]);
+  else if(ga<280 && !b.corrected) al.push(['ok', `${nat} a ${gaTxt(b)} settimane (a termine): i percentili usano l'età dalla nascita. Se preferisci, puoi attivare l'età corretta nei dati del bambino.`]);
+
+  // calo fisiologico e recupero del peso di nascita
+  const minP = wp.filter(p=>p.days<=21).reduce((a,p)=>p.weight<a.weight?p:a, wp[0]);
   const loss = (b.birthWeight-minP.weight)/b.birthWeight*100;
   if(loss>0){
     const t = `Calo fisiologico massimo: ${loss.toLocaleString('it-IT',{maximumFractionDigits:1})}% (${fmtG(minP.weight)} a ${fmtAge(minP.days)}).`;
@@ -291,142 +362,188 @@ function renderKpis(b, pts){
     else if(loss>7) al.push(['warn', t+' Tra 7% e 10%: da tenere sotto controllo (allattamento, pannolini bagnati).']);
     else al.push(['ok', t+' Nella norma (entro il 7%).']);
   }
-  const regained = pts.find(p=>!p.birth && p.days>minP.days && p.weight>=b.birthWeight) || pts.find(p=>!p.birth && p.weight>=b.birthWeight && loss<=0);
+  const regained = wp.find(p=>!p.birth && p.days>minP.days && p.weight>=b.birthWeight) || wp.find(p=>!p.birth && p.weight>=b.birthWeight && loss<=0);
   if(regained) al.push(['ok', `Peso di nascita recuperato a ${fmtAge(regained.days)} (${fmtDate(regained.date)}).`]);
-  else if(last.days>14) al.push(['bad', `Il peso di nascita non risulta ancora recuperato a ${fmtAge(last.days)} (atteso di norma entro 10–14 giorni).`]);
-  else if(pts.length>1) al.push(['warn', 'Peso di nascita non ancora recuperato (atteso di norma entro 10–14 giorni).']);
+  else if(lw.days>14) al.push(['bad', `Il peso di nascita non risulta ancora recuperato a ${fmtAge(lw.days)} (atteso di norma entro 10–14 giorni).`]);
+  else if(wp.length>1) al.push(['warn', 'Peso di nascita non ancora recuperato (atteso di norma entro 10–14 giorni).']);
 
-  // ritmo di crescita vs riferimento indicativo
-  const kRec = k.find(x=>x.l==='Crescita recente');
-  if(kRec && last.days>14 && pts.length>2){
-    let ref = pts[0]; for(const p of pts){ if(p!==last && last.days-p.days>=7) ref=p; }
-    const dd=last.days-ref.days;
-    if(dd>=5 && ref.days>=10){
-      const wk=(last.weight-ref.weight)/dd*7, m=last.months;
-      const [lo,hi] = m<3?[150,250]: m<6?[90,150]: m<12?[50,100]:[25,60];
-      if(wk<lo*0.75) al.push(['warn', `Crescita recente ${Math.round(wk)} g/sett: sotto il valore orientativo per l'età (${lo}–${hi} g/sett).`]);
-      else if(wk>hi*1.4) al.push(['warn', `Crescita recente ${Math.round(wk)} g/sett: sopra il valore orientativo per l'età (${lo}–${hi} g/sett).`]);
-      else al.push(['ok', `Crescita recente ${Math.round(wk)} g/sett: in linea con il valore orientativo per l'età (${lo}–${hi} g/sett).`]);
+  // ritmo di crescita del peso (riferimento per età corretta)
+  if(recW && lw.days>14 && wp.length>2 && recW.dd>=5 && recW.ref.days>=10){
+    const wk=recW.gday*7, m=Math.max(0,lw.cm);
+    const [lo,hi] = m<3?[150,250]: m<6?[90,150]: m<12?[50,100]:[25,60];
+    if(wk<lo*0.75) al.push(['warn', `Crescita del peso ${Math.round(wk)} g/sett: sotto il valore orientativo per l'età (${lo}–${hi} g/sett).`]);
+    else if(wk>hi*1.4) al.push(['warn', `Crescita del peso ${Math.round(wk)} g/sett: sopra il valore orientativo per l'età (${lo}–${hi} g/sett).`]);
+    else al.push(['ok', `Crescita del peso ${Math.round(wk)} g/sett: in linea con il valore orientativo per l'età (${lo}–${hi} g/sett).`]);
+  }
+  // attraversamento di percentili (dopo le prime 2 settimane)
+  const crossing = (arr, key, what) => {
+    const zs = arr.filter(p=>p[key]!=null && p.days>=14);
+    if(zs.length<2) return;
+    const peak = zs.slice(0,-1).reduce((a,p)=>p[key]>a[key]?p:a, zs[0]);
+    if(peak[key]-zs[zs.length-1][key] >= 1.3) al.push(['warn', `${what} è scesa/o di circa due linee di percentile rispetto a ${fmtAge(peak.days)}: da segnalare al pediatra.`]);
+  };
+  crossing(wp,'zW','Il peso');
+  if(lw.zW!=null && (lw.zW<-1.881 || lw.zW>1.881)) al.push(['warn', `Il peso attuale è ${lw.zW<0?'sotto il 3°':'sopra il 97°'} percentile OMS.`]);
+
+  // lunghezza
+  if(ll){
+    crossing(lp,'zL','La lunghezza');
+    if(ll.zL!=null && (ll.zL<-1.881 || ll.zL>1.881)) al.push(['warn', `La lunghezza attuale è ${ll.zL<0?'sotto il 3°':'sopra il 97°'} percentile OMS.`]);
+    const prevL = lp[lp.length-2];
+    if(prevL && ll.length < prevL.length-0.5)
+      al.push(['warn', `La lunghezza del ${fmtDate(ll.date)} (${fmtCm(ll.length)}) è inferiore alla precedente (${fmtCm(prevL.length)}): probabile errore di misura, conviene ripeterla.`]);
+    let refL=null; for(const p of lp){ if(p!==ll && ll.days-p.days>=28) refL=p; }
+    if(refL){
+      const dd=ll.days-refL.days, cmM=(ll.length-refL.length)/dd*DAYS_PER_MONTH, m=Math.max(0,ll.cm);
+      const [lo,hi] = m<3?[3,4.5]: m<6?[1.8,2.6]: m<12?[1.1,1.7]:[0.7,1.1];
+      const t = `Crescita in lunghezza ${cmM.toLocaleString('it-IT',{maximumFractionDigits:1})} cm/mese dal ${fmtDate(refL.date)} (orientativo per l'età: ${lo.toLocaleString('it-IT')}–${hi.toLocaleString('it-IT')} cm/mese)`;
+      if(cmM < lo*0.6) al.push(['warn', t+': sotto il valore atteso, da valutare con il pediatra.']);
+      else al.push(['ok', t+'.']);
+    }
+    // peso e lunghezza molto distanti come percentile
+    if(ll.zL!=null){
+      const near = wp.filter(p=>p.zW!=null && Math.abs(p.days-ll.days)<=7).sort((a,c)=>Math.abs(a.days-ll.days)-Math.abs(c.days-ll.days))[0];
+      if(near && Math.abs(near.zW-ll.zL)>=2)
+        al.push(['warn', `Peso e lunghezza sono su percentili molto diversi (peso ${pctTxt(near.zW)}, lunghezza ${pctTxt(ll.zL)}): da valutare con il pediatra.`]);
+      else if(near) al.push(['ok', `Peso (${pctTxt(near.zW)}) e lunghezza (${pctTxt(ll.zL)}) sono proporzionati tra loro.`]);
     }
   }
-  // attraversamento percentili (dopo le prime 2 settimane)
-  const zs = pts.filter(p=>p.z!=null && p.days>=14);
-  if(zs.length>=2){
-    const peak = zs.slice(0,-1).reduce((a,p)=>p.z>a.z?p:a, zs[0]);
-    const drop = peak.z - zs[zs.length-1].z;
-    if(drop>=1.3) al.push(['warn', `Il peso è sceso di circa due linee di percentile rispetto a ${fmtAge(peak.days)}: da segnalare al pediatra.`]);
-  }
-  if(last.z!=null && (last.z<-2 || last.z>2)) al.push(['warn', `Il peso attuale è ${last.z<0?'sotto il 3°':'sopra il 97°'} percentile OMS.`]);
-  if(last.days>24*DAYS_PER_MONTH) al.push(['warn','Oltre i 24 mesi le curve di questa app non sono disponibili.']);
+  if(lw.days>24*DAYS_PER_MONTH) al.push(['warn','Oltre i 24 mesi le curve di questa app non sono disponibili.']);
   $('alerts').innerHTML = al.map(([c,t])=>`<div class="alert ${c}">${esc(t)}</div>`).join('');
 }
 
 function renderTable(b, pts){
-  let h = `<tr><th class="l">Data</th><th>Età</th><th>Peso</th><th>Variazione</th><th>Giorni</th><th>g/giorno</th><th>g/sett</th><th>vs nascita</th><th>Percentile</th><th class="l">Nota</th><th></th></tr>`;
-  const rows=[];
-  pts.forEach((p,i)=>{
-    const prev=pts[i-1]; let dv='',dd='',gd='',gw='';
-    if(prev){ const d=p.days-prev.days, w=p.weight-prev.weight;
-      dv=`<span class="${w>=0?'pos':'neg'}">${signed(w,' g')}</span>`; dd=d;
+  const corr = corrDays(b);
+  let h = `<tr><th class="l">Data</th><th>Età</th>${corr>0?'<th>Età corr.</th>':''}<th>Peso</th><th>Variazione</th><th>g/giorno</th><th>g/sett</th><th>Perc. peso</th><th>Lunghezza</th><th>Perc. lungh.</th><th>Latte art.</th><th class="l">Nota</th><th></th></tr>`;
+  const rows=[]; let prevW=null;
+  pts.forEach(p=>{
+    let dv='',gd='',gw='';
+    if(p.weight && prevW){ const d=p.days-prevW.days, w=p.weight-prevW.weight;
+      dv=`<span class="${w>=0?'pos':'neg'}">${signed(w,' g')}</span>`;
       if(d>0){ gd=`<span class="${w>=0?'pos':'neg'}">${signed(w/d,'')}</span>`; gw=signed(w/d*7,''); } }
-    const vsb = p.birth?'': ((p.weight/b.birthWeight-1)*100).toLocaleString('it-IT',{maximumFractionDigits:1,signDisplay:'always'})+'%';
-    const pc = p.z==null?'—':(()=>{const v=normCdf(p.z)*100; return (v<1?'<1':v>99?'>99':Math.round(v))+'°';})();
-    rows.push(`<tr><td class="l">${fmtDate(p.date)}</td><td>${fmtAge(p.days)}</td><td><b>${fmtG(p.weight)}</b></td><td>${dv}</td><td>${dd}</td><td>${gd}</td><td>${gw}</td><td>${vsb}</td><td>${pc}</td>
+    if(p.weight) prevW=p;
+    rows.push(`<tr><td class="l">${fmtDate(p.date)}</td><td>${fmtAge(p.days)}</td>${corr>0?`<td class="sub">${fmtAge(p.cdays)}</td>`:''}
+      <td><b>${p.weight?fmtG(p.weight):''}</b></td><td>${dv}</td><td>${gd}</td><td>${gw}</td><td>${p.weight?pctTxt(p.zW):''}</td>
+      <td><b>${p.length?fmtCm(p.length):''}</b></td><td>${p.length?pctTxt(p.zL):''}</td><td>${p.formula!=null?Math.round(p.formula)+' ml':''}</td>
       <td class="l">${esc(p.note||'')}</td><td>${p.birth?'':`<button class="link" title="Elimina" onclick="delMeasure('${p.id}')">✕</button>`}</td></tr>`);
   });
   $('tbl').innerHTML = h + rows.reverse().join('');
 }
 
 function renderChart(b, pts){
+  const kind = state.chartKind==='l' ? 'l' : 'w';
+  const T = kind==='w' ? WFA : LFA;
+  const val = p => kind==='w' ? (p.weight ? p.weight/1000 : null) : (p.length || null);
+  const all = pts.filter(p=>val(p)!=null);
+  if(!all.length){ $('chart').innerHTML = '<div class="empty">Nessuna lunghezza inserita: aggiungila in “Nuova misurazione” (anche quella alla nascita, nei dati del bambino).</div>'; return; }
+  const corr = corrDays(b);
   const narrow = ($('chart').clientWidth||960) < 600;
   const fs=narrow?17:12, W=narrow?520:960, H=narrow?480:440, pl=narrow?46:58, pr=narrow?38:46, pt=14, pb=40;
-  const lastM = pts[pts.length-1].months;
-  let xMax = state.range==='auto'||!state.range ? Math.min(24, Math.max(1, Math.ceil(lastM*1.25+0.25))) : +state.range;
-  const vis = pts.filter(p=>p.months<=xMax+1e-9);
-  let yMin = Math.min(weightAtZ(b.sex,0,-2.3), ...vis.map(p=>p.weight/1000));
-  let yMax = Math.max(weightAtZ(b.sex,xMax,2.3), ...vis.map(p=>p.weight/1000));
-  const yStep = (yMax-yMin)>6?1:(yMax-yMin)>2.5?0.5:0.25;
+  const lastM = Math.max(...pts.map(p=>p.cm));
+  const xMax = state.range==='auto'||!state.range ? Math.min(24, Math.max(1, Math.ceil(lastM*1.25+0.25))) : +state.range;
+  const vis = all.filter(p=>p.cm<=xMax+1e-9);
+  const xMin = Math.min(0, ...vis.map(p=>p.cm));          // negativo se ci sono misure prima del termine
+  let yMin = Math.min(valAtZ(T,b.sex,0,-2.3), ...vis.map(val));
+  let yMax = Math.max(valAtZ(T,b.sex,xMax,2.3), ...vis.map(val));
+  const span = yMax-yMin;
+  const yStep = kind==='w' ? (span>6?1:span>2.5?0.5:0.25) : (span>30?5:span>12?2:1);
   yMin = Math.floor(yMin/yStep)*yStep; yMax=Math.ceil(yMax/yStep)*yStep;
-  const X = m => pl + m/xMax*(W-pl-pr), Y = kg => pt + (yMax-kg)/(yMax-yMin)*(H-pt-pb);
+  const X = m => pl + (m-xMin)/(xMax-xMin)*(W-pl-pr), Y = v => pt + (yMax-v)/(yMax-yMin)*(H-pt-pb);
   const N=120, xs=[...Array(N+1)].map((_,i)=>i/N*xMax);
-  const curve = z => xs.map(m=>[X(m),Y(weightAtZ(b.sex,m,z))]);
+  const curve = z => xs.map(m=>[X(m),Y(valAtZ(T,b.sex,m,z))]);
   const path = arr => 'M'+arr.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join('L');
   const band = (z1,z2) => path(curve(z1).concat(curve(z2).reverse()))+'Z';
+  const txt = (x,y,t,a='middle',extra='') => `<text x="${x}" y="${y}" text-anchor="${a}" font-size="${fs}" fill="#6b7689" ${extra}>${t}</text>`;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Curva di crescita">`;
-  // griglia Y
   for(let v=yMin; v<=yMax+1e-9; v+=yStep){
     s+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="#eef1f6"/>`;
-    s+=`<text x="${pl-8}" y="${Y(v)+4}" text-anchor="end" font-size="${fs}" fill="#6b7689">${v.toLocaleString('it-IT')}</text>`;
+    s+=txt(pl-8, Y(v)+4, v.toLocaleString('it-IT'), 'end');
   }
-  // griglia X: settimane se ≤ 3 mesi, altrimenti mesi
+  const ageLbl = corr>0 ? 'età corretta' : 'età';
   if(xMax<=3){
-    const maxW = Math.floor(xMax*DAYS_PER_MONTH/7);
-    for(let w=0; w<=maxW; w++){ const m=w*7/DAYS_PER_MONTH;
+    const w0=Math.ceil(xMin*DAYS_PER_MONTH/7), w1=Math.floor(xMax*DAYS_PER_MONTH/7), every=(w1-w0)>8?2:1;
+    for(let w=w0; w<=w1; w++){ const m=w*7/DAYS_PER_MONTH;
       s+=`<line x1="${X(m)}" x2="${X(m)}" y1="${pt}" y2="${H-pb}" stroke="#eef1f6"/>`;
-      if(xMax<=1.5 || w%2===0) s+=`<text x="${X(m)}" y="${H-pb+16}" text-anchor="middle" font-size="${fs}" fill="#6b7689">${w}</text>`; }
-    s+=`<text x="${(pl+W-pr)/2}" y="${H-4}" text-anchor="middle" font-size="${fs}" fill="#6b7689">età (settimane)</text>`;
+      if(w%every===0) s+=txt(X(m), H-pb+16, w); }
+    s+=txt((pl+W-pr)/2, H-4, ageLbl+' (settimane)');
   } else {
     const st = xMax>12?2:1;
-    for(let m=0;m<=xMax;m++){ s+=`<line x1="${X(m)}" x2="${X(m)}" y1="${pt}" y2="${H-pb}" stroke="#eef1f6"/>`;
-      if(m%st===0) s+=`<text x="${X(m)}" y="${H-pb+16}" text-anchor="middle" font-size="${fs}" fill="#6b7689">${m}</text>`; }
-    s+=`<text x="${(pl+W-pr)/2}" y="${H-4}" text-anchor="middle" font-size="${fs}" fill="#6b7689">età (mesi)</text>`;
+    for(let m=Math.ceil(xMin); m<=xMax; m++){ s+=`<line x1="${X(m)}" x2="${X(m)}" y1="${pt}" y2="${H-pb}" stroke="#eef1f6"/>`;
+      if(m%st===0) s+=txt(X(m), H-pb+16, m); }
+    s+=txt((pl+W-pr)/2, H-4, ageLbl+' (mesi)');
   }
-  s+=`<text x="14" y="${(pt+H-pb)/2}" transform="rotate(-90 14 ${(pt+H-pb)/2})" text-anchor="middle" font-size="${fs}" fill="#6b7689">peso (kg)</text>`;
-  // bande percentili
+  s+=txt(14, (pt+H-pb)/2, kind==='w'?'peso (kg)':'lunghezza (cm)', 'middle', `transform="rotate(-90 14 ${(pt+H-pb)/2})"`);
   s+=`<path d="${band(-1.881,1.881)}" fill="var(--band-outer)"/>`;
   s+=`<path d="${band(-1.036,1.036)}" fill="var(--band-inner)"/>`;
   PCT.forEach(p=>{
     s+=`<path d="${path(curve(p.z))}" fill="none" stroke="${p.p===50?'var(--p50)':'#8fa9cc'}" stroke-width="${p.p===50?2:1}" ${p.p===50?'':'stroke-dasharray="4 3"'}/>`;
-    const ye=Y(weightAtZ(b.sex,xMax,p.z));
-    s+=`<text x="${W-pr+4}" y="${ye+4}" font-size="${fs-1}" fill="#55698a">${p.p}°</text>`;
+    s+=`<text x="${W-pr+4}" y="${Y(valAtZ(T,b.sex,xMax,p.z))+4}" font-size="${fs-1}" fill="#55698a">${p.p}°</text>`;
   });
+  if(xMin<0){ // linea del termine (40 settimane)
+    s+=`<line x1="${X(0)}" x2="${X(0)}" y1="${pt}" y2="${H-pb}" stroke="#55698a" stroke-dasharray="2 3"/>`;
+    s+=`<text x="${X(0)+4}" y="${pt+fs}" font-size="${fs-1}" fill="#55698a">40 sett</text>`;
+  }
   s+=`<rect x="${pl}" y="${pt}" width="${W-pl-pr}" height="${H-pt-pb}" fill="none" stroke="#c9d2df"/>`;
-  // pesate
-  if(vis.length>1) s+=`<path d="${path(vis.map(p=>[X(p.months),Y(p.weight/1000)]))}" fill="none" stroke="var(--point)" stroke-width="2"/>`;
+  if(vis.length>1) s+=`<path d="${path(vis.map(p=>[X(p.cm),Y(val(p))]))}" fill="none" stroke="var(--point)" stroke-width="2"/>`;
   vis.forEach(p=>{
-    s+=`<circle cx="${X(p.months)}" cy="${Y(p.weight/1000)}" r="4.5" fill="${p.birth?'#fff':'var(--point)'}" stroke="var(--point)" stroke-width="2"><title>${fmtDate(p.date)} · ${fmtAge(p.days)}\n${fmtG(p.weight)}${p.note?'\n'+esc(p.note):''}</title></circle>`;
+    const lab = kind==='w' ? fmtG(p.weight) : fmtCm(p.length);
+    s+=`<circle cx="${X(p.cm)}" cy="${Y(val(p))}" r="4.5" fill="${p.birth?'#fff':'var(--point)'}" stroke="var(--point)" stroke-width="2"><title>${fmtDate(p.date)} · ${fmtAge(p.days)}\n${lab}${p.note?'\n'+esc(p.note):''}</title></circle>`;
   });
   s+='</svg>';
   $('chart').innerHTML = s;
 }
 
 /* ===== Azioni ===== */
+fillGaSelects();
+const syncCorr = ()=>{ const ga=(+$('pGaW').value)*7+(+$('pGaD').value); $('pCorr').checked = ga<TERM; };
+$('pGaW').onchange = syncCorr; $('pGaD').onchange = syncCorr;
 $('btnNew').onclick = ()=>{ state.current=null; render(); $('pName').focus(); };
 $('babySel').onchange = e=>{ state.current=e.target.value; save(); render(); };
 $('btnSaveProfile').onclick = ()=>{
-  const name=$('pName').value.trim(), sex=$('pSex').value, birth=$('pBirth').value, bw=+$('pBW').value;
+  const name=$('pName').value.trim(), sex=$('pSex').value, birth=$('pBirth').value, bw=+$('pBW').value, bl=num($('pBL').value);
+  const gaWeeks=+$('pGaW').value, gaDays=+$('pGaD').value, corrected=$('pCorr').checked;
   if(!birth) return alert('Inserisci la data di nascita.');
   if(birth>today()) return alert('La data di nascita è nel futuro.');
   if(!(bw>=300 && bw<=7000)) return alert('Inserisci il peso alla nascita in grammi (es. 3250).');
+  if(bl!=null && !(bl>=25 && bl<=65)) return alert('Inserisci la lunghezza alla nascita in centimetri (es. 50,5), oppure lascia vuoto.');
   let b=baby();
-  if(b){ if(b.measures.some(m=>m.date<birth)) return alert('Ci sono pesate precedenti a questa data di nascita.');
-    Object.assign(b,{name,sex,birth,birthWeight:bw}); }
-  else { b={id:uid(),name,sex,birth,birthWeight:bw,measures:[]}; state.babies.push(b); state.current=b.id; }
+  const data={name,sex,birth,birthWeight:bw,birthLength:bl,gaWeeks,gaDays,corrected};
+  if(b){ if(b.measures.some(m=>m.date<birth)) return alert('Ci sono misurazioni precedenti a questa data di nascita.');
+    Object.assign(b,data); }
+  else { b={id:uid(),...data,measures:[]}; state.babies.push(b); state.current=b.id; }
   save(); render();
 };
 $('btnDelBaby').onclick = ()=>{
   const b=baby(); if(!b) return;
-  if(!confirm(`Eliminare definitivamente "${b.name||'Senza nome'}" e tutte le sue ${b.measures.length} pesate?\nConsiglio: fai prima un Backup.`)) return;
+  if(!confirm(`Eliminare definitivamente "${b.name||'Senza nome'}" e tutte le sue ${b.measures.length} misurazioni?\nConsiglio: fai prima un Backup.`)) return;
   state.babies=state.babies.filter(x=>x!==b); state.current=state.babies[0]?.id||null; save(); render();
 };
 $('btnAdd').onclick = ()=>{
-  const b=baby(), date=$('mDate').value, w=+$('mWeight').value, note=$('mNote').value.trim();
+  const b=baby(), date=$('mDate').value, w=num($('mWeight').value), l=num($('mLength').value), f=num($('mFormula').value), note=$('mNote').value.trim();
   if(!date) return alert('Inserisci la data.');
   if(date<b.birth) return alert('La data è precedente alla nascita.');
   if(date>today()) return alert('La data è nel futuro.');
-  if(!(w>=300 && w<=30000)) return alert('Inserisci il peso in grammi (es. 3450).');
-  const pts=points(b), prev=[...pts].reverse().find(p=>p.date<=date);
-  if(prev && Math.abs(w-prev.weight)/prev.weight>0.25 && (dayNum(date)-dayNum(prev.date))<30
-     && !confirm(`Il peso differisce molto dalla pesata del ${fmtDate(prev.date)} (${fmtG(prev.weight)}). Confermi ${fmtG(w)}?`)) return;
-  b.measures.push({id:uid(),date,weight:w,note});
-  save(); $('mWeight').value=''; $('mNote').value=''; render(); $('mWeight').focus();
+  if(w==null && l==null && f==null) return alert('Inserisci almeno un valore: peso (g), lunghezza (cm) o latte artificiale (ml).');
+  if(f!=null && !(f>=0 && f<=2000)) return alert('Inserisci il latte artificiale in ml al giorno (es. 120, oppure 0).');
+  if(w!=null && !(w>=300 && w<=30000)) return alert('Inserisci il peso in grammi (es. 3450).');
+  if(l!=null && !(l>=25 && l<=130)) return alert('Inserisci la lunghezza in centimetri (es. 52,5).');
+  const pts=points(b);
+  const prevW=[...pts].reverse().find(p=>p.weight && p.date<=date), prevL=[...pts].reverse().find(p=>p.length && p.date<=date);
+  if(w!=null && prevW && Math.abs(w-prevW.weight)/prevW.weight>0.25 && (dayNum(date)-dayNum(prevW.date))<30
+     && !confirm(`Il peso differisce molto da quello del ${fmtDate(prevW.date)} (${fmtG(prevW.weight)}). Confermi ${fmtG(w)}?`)) return;
+  if(l!=null && prevL && (l<prevL.length-0.5 || (l-prevL.length>6 && (dayNum(date)-dayNum(prevL.date))<30))
+     && !confirm(`La lunghezza è ${l<prevL.length?'inferiore a':'molto maggiore di'} quella del ${fmtDate(prevL.date)} (${fmtCm(prevL.length)}). Confermi ${fmtCm(l)}?`)) return;
+  b.measures.push({id:uid(),date,weight:w,length:l,formula:f,note});
+  save(); $('mWeight').value=''; $('mLength').value=''; $('mFormula').value=''; $('mNote').value=''; render(); $('mWeight').focus();
 };
-$('mWeight').addEventListener('keydown',e=>{ if(e.key==='Enter') $('btnAdd').click(); });
+['mWeight','mLength','mFormula'].forEach(id=>$(id).addEventListener('keydown',e=>{ if(e.key==='Enter') $('btnAdd').click(); }));
 window.delMeasure = id=>{
-  const b=baby(), m=b.measures.find(x=>x.id===id);
-  if(m && confirm(`Eliminare la pesata del ${fmtDate(m.date)} (${fmtG(m.weight)})?`)){ b.measures=b.measures.filter(x=>x.id!==id); save(); render(); }
+  const b=baby(), m=b.measures.find(x=>x.id===id); if(!m) return;
+  const what=[m.weight?fmtG(m.weight):'', m.length?fmtCm(m.length):'', m.formula!=null?'latte art. '+m.formula+' ml':''].filter(Boolean).join(', ');
+  if(confirm(`Eliminare la misurazione del ${fmtDate(m.date)} (${what})?`)){ b.measures=b.measures.filter(x=>x.id!==id); save(); render(); }
 };
 document.querySelectorAll('#chartRange button').forEach(btn=>btn.onclick=()=>{ state.range=btn.dataset.r; save(); render(); });
+document.querySelectorAll('#chartKind button').forEach(btn=>btn.onclick=()=>{ state.chartKind=btn.dataset.k; save(); render(); });
 
 async function download(name, text, type){
   // Su iPhone apre il menu Condividi (Salva su File, WhatsApp, Mail…)
@@ -439,7 +556,7 @@ async function download(name, text, type){
 }
 $('btnExport').onclick = ()=>{
   state.lastBackup=new Date().toISOString(); save();
-  download(`crescita-neonato-backup-${today()}.json`, JSON.stringify({app:'crescita-neonato',version:1,babies:state.babies},null,2),'application/json');
+  download(`crescita-neonato-backup-${today()}.json`, JSON.stringify({app:'crescita-neonato',version:2,babies:state.babies},null,2),'application/json');
   render();
 };
 $('btnImport').onclick = ()=>$('fileImport').click();
@@ -453,12 +570,11 @@ $('fileImport').onchange = e=>{
   }).catch(()=>alert('File non valido.')).finally(()=>e.target.value='');
 };
 $('btnCsv').onclick = ()=>{
-  const b=baby(), pts=points(b);
-  const lines=['Data;Età (giorni);Peso (g);Variazione (g);g/giorno;Percentile OMS;Nota'];
-  pts.forEach((p,i)=>{ const pr=pts[i-1], d=pr?p.days-pr.days:0, w=pr?p.weight-pr.weight:'';
-    lines.push([fmtDate(p.date),p.days,p.weight,w,(pr&&d>0)?(w/d).toFixed(1).replace('.',','):'',
-      p.z==null?'':Math.round(normCdf(p.z)*100),'"'+String(p.note||'').replace(/"/g,'""')+'"'].join(';')); });
-  download(`pesate-${(b.name||'bambino').replace(/\W+/g,'_')}-${today()}.csv`, '﻿'+lines.join('\r\n'),'text/csv');
+  const b=baby(), pts=points(b), dec=v=>String(v).replace('.',',');
+  const lines=['Data;Età (giorni);Età corretta (giorni);Peso (g);Percentile peso;Lunghezza (cm);Percentile lunghezza;Latte artificiale (ml/giorno);Nota'];
+  pts.forEach(p=>lines.push([fmtDate(p.date),p.days,p.cdays,p.weight||'',p.zW==null?'':Math.round(normCdf(p.zW)*100),
+    p.length?dec(p.length):'',p.zL==null?'':Math.round(normCdf(p.zL)*100),p.formula??'','"'+String(p.note||'').replace(/"/g,'""')+'"'].join(';')));
+  download(`crescita-${(b.name||'bambino').replace(/\W+/g,'_')}-${today()}.csv`, '﻿'+lines.join('\r\n'),'text/csv');
 };
 $('btnPrint').onclick = ()=>window.print();
 
