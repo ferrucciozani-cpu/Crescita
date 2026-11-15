@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crescita Neonato</title>
+<meta name="theme-color" content="#1f3a5f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Crescita">
+<style>
+:root{
+  --navy:#1f3a5f; --navy-2:#2c4f7c; --bg:#f3f5f9; --card:#ffffff; --text:#1d2533; --muted:#6b7689;
+  --line:#dde3ec; --ok:#1e8a5a; --warn:#c98a00; --bad:#c0392b; --accent:#e8f0fb;
+  --band-outer:#dfe9f6; --band-inner:#c4d6ee; --p50:#2c4f7c; --point:#d0543c;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+header{background:var(--navy);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:19px;margin:0;font-weight:600;flex:1}
+header select,header button{font:inherit}
+main{max-width:1150px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.card h2{margin:0 0 12px;font-size:16px;color:var(--navy)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:4px}
+input,select,textarea{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--text)}
+button{font:inherit;padding:7px 14px;border-radius:6px;border:1px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer}
+button.sec{background:#fff;color:var(--navy)}
+button.danger{background:#fff;color:var(--bad);border-color:var(--bad)}
+button.link{background:none;border:none;color:var(--bad);padding:2px 6px}
+header button{background:var(--navy-2);border-color:#5b7aa5}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{background:var(--accent);border-radius:8px;padding:10px 12px}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:22px;font-weight:600;color:var(--navy);margin-top:2px}
+.kpi .s{font-size:12px;color:var(--muted)}
+.alerts{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.alert{padding:8px 12px;border-radius:6px;border-left:4px solid;font-size:14px}
+.alert.ok{background:#e8f6ef;border-color:var(--ok)}
+.alert.warn{background:#fff6e0;border-color:var(--warn)}
+.alert.bad{background:#fdecea;border-color:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:12px;background:#f8fafc}
+td.l,th.l{text-align:left;white-space:normal}
+.pos{color:var(--ok)} .neg{color:var(--bad)}
+.tablewrap{overflow-x:auto}
+svg text{font-family:inherit}
+.chartbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.chartbar button{padding:4px 10px;font-size:13px}
+.chartbar button.on{background:var(--navy);color:#fff}
+.legend{font-size:12px;color:var(--muted);margin-top:6px}
+.legend span{display:inline-block;width:14px;height:10px;vertical-align:middle;margin:0 4px 0 12px;border-radius:2px}
+.empty{color:var(--muted);text-align:center;padding:30px}
+.foot{font-size:12px;color:var(--muted);text-align:center;margin:20px 0}
+.hidden{display:none}
+header{padding-top:calc(14px + env(safe-area-inset-top));padding-left:calc(20px + env(safe-area-inset-left));padding-right:calc(20px + env(safe-area-inset-right))}
+main{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+html{-webkit-text-size-adjust:100%}
+button{touch-action:manipulation}
+@media (max-width:600px){
+  main{padding:10px}
+  header{padding:calc(10px + env(safe-area-inset-top)) 12px 10px;gap:8px}
+  header h1{font-size:17px;flex:1 1 100%}
+  header select{flex:1 1 100%;min-width:0;padding:8px;border-radius:6px;border:none;font-size:16px}
+  header button{flex:1 1 0;padding:8px 6px;font-size:14px}
+  .card{padding:12px;border-radius:12px}
+  .kpis{grid-template-columns:1fr 1fr;gap:8px}
+  .kpi .v{font-size:18px}
+  /* 16px evita lo zoom automatico di Safari quando si tocca un campo */
+  input,select,textarea{font-size:16px;padding:10px}
+  label{flex:1 1 140px}
+  .row > button{flex:1 1 auto;padding:11px 14px}
+  #pName{width:100%!important}
+  table{font-size:13px}
+  th,td{padding:6px 5px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="appTitle">👶 Crescita Neonato</h1>
+  <select id="babySel" title="Bambino"></select>
+  <button id="btnNew">+ Nuovo bambino</button>
+  <button id="btnExport" title="Salva una copia di tutti i dati in un file">Backup</button>
+  <button id="btnImport" title="Ripristina da un file di backup">Ripristina</button>
+  <input type="file" id="fileImport" accept=".json" class="hidden">
+</header>
+
+<main>
+  <div id="storageWarn" class="alert bad hidden" style="margin-bottom:16px">
+    Il browser non permette di salvare i dati in modo permanente (finestra anonima o archiviazione bloccata). Usa “Backup” prima di chiudere.
+  </div>
+
+  <!-- Profilo -->
+  <section class="card" id="profileCard">
+    <h2 id="profileTitle">Dati del bambino</h2>
+    <div class="row">
+      <label>Nome<input id="pName" placeholder="es. Maria" style="width:160px"></label>
+      <label>Sesso<select id="pSex"><option value="F">Femmina</option><option value="M">Maschio</option></select></label>
+      <label>Data di nascita<input type="date" id="pBirth"></label>
+      <label>Peso alla nascita (g)<input type="number" id="pBW" inputmode="numeric" min="300" max="7000" step="1" style="width:130px"></label>
+      <button id="btnSaveProfile">Salva</button>
+      <button id="btnDelBaby" class="danger">Elimina bambino</button>
+    </div>
+  </section>
+
+  <div id="mainArea" class="hidden">
+    <!-- Riepilogo -->
+    <section class="card">
+      <h2>Riepilogo</h2>
+      <div class="kpis" id="kpis"></div>
+      <div class="alerts" id="alerts"></div>
+    </section>
+
+    <!-- Nuova pesata -->
+    <section class="card">
+      <h2>Nuova pesata</h2>
+      <div class="row">
+        <label>Data<input type="date" id="mDate"></label>
+        <label>Peso (g)<input type="number" id="mWeight" inputmode="numeric" min="300" max="30000" step="1" style="width:130px" placeholder="es. 3450"></label>
+        <label style="flex:1;min-width:200px">Nota (facoltativa)<input id="mNote" placeholder="es. dopo la poppata, visita pediatra…"></label>
+        <button id="btnAdd">Aggiungi</button>
+      </div>
+    </section>
+
+    <!-- Grafico -->
+    <section class="card">
+      <h2>Curva di crescita (percentili OMS peso/età)</h2>
+      <div class="chartbar" id="chartRange">
+        <button class="sec" data-r="auto">Auto</button>
+        <button class="sec" data-r="1">1 mese</button>
+        <button class="sec" data-r="3">3 mesi</button>
+        <button class="sec" data-r="6">6 mesi</button>
+        <button class="sec" data-r="12">12 mesi</button>
+        <button class="sec" data-r="24">24 mesi</button>
+      </div>
+      <div id="chart"></div>
+      <div class="legend">
+        <span style="background:var(--band-outer)"></span>3°–97° percentile
+        <span style="background:var(--band-inner)"></span>15°–85° percentile
+        <span style="background:var(--p50);height:3px"></span>50° (mediana)
+        <span style="background:var(--point);border-radius:50%;width:10px"></span>pesate
+      </div>
+    </section>
+
+    <!-- Tabella -->
+    <section class="card">
+      <h2>Storico pesate</h2>
+      <div class="tablewrap"><table id="tbl"></table></div>
+      <div class="row" style="margin-top:12px">
+        <button class="sec" id="btnCsv">Esporta CSV (Excel)</button>
+        <button class="sec" id="btnPrint">Stampa / PDF per il pediatra</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="foot">
+    I dati restano solo su questo dispositivo. Fai un <b>Backup</b> ogni tanto (puoi salvarlo in File/iCloud o inviarlo per WhatsApp o email).<br>
+    Percentili: WHO Child Growth Standards, peso per età 0–24 mesi. Strumento indicativo: non sostituisce la valutazione del pediatra.
+    <div id="lastBackup"></div>
+  </div>
+</main>
+
+<script>
+/* ===== WHO weight-for-age LMS, 0–24 mesi (L, M, S) ===== */
+const WHO = {
+ M:[[0.3487,3.3464,0.14602],[0.2297,4.4709,0.13395],[0.1970,5.5675,0.12385],[0.1738,6.3762,0.11727],[0.1553,7.0023,0.11316],
+    [0.1395,7.5105,0.11080],[0.1257,7.9340,0.10958],[0.1134,8.2970,0.10902],[0.1021,8.6151,0.10882],[0.0917,8.9014,0.10881],
+    [0.0820,9.1649,0.10891],[0.0730,9.4122,0.10906],[0.0644,9.6479,0.10925],[0.0563,9.8749,0.10949],[0.0487,10.0953,0.10976],
+    [0.0413,10.3108,0.11007],[0.0343,10.5228,0.11041],[0.0275,10.7319,0.11079],[0.0211,10.9385,0.11119],[0.0148,11.1430,0.11164],
+    [0.0087,11.3462,0.11211],[0.0029,11.5486,0.11261],[-0.0028,11.7504,0.11314],[-0.0083,11.9514,0.11369],[-0.0137,12.1515,0.11426]],
+ F:[[0.3809,3.2322,0.14171],[0.1714,4.1873,0.13724],[0.0962,5.1282,0.13000],[0.0402,5.8458,0.12619],[-0.0050,6.4237,0.12402],
+    [-0.0430,6.8985,0.12274],[-0.0756,7.2970,0.12204],[-0.1039,7.6422,0.12178],[-0.1288,7.9487,0.12181],[-0.1507,8.2254,0.12199],
+    [-0.1700,8.4800,0.12223],[-0.1872,8.7192,0.12247],[-0.2024,8.9481,0.12268],[-0.2158,9.1699,0.12283],[-0.2278,9.3870,0.12294],
+    [-0.2384,9.6008,0.12299],[-0.2478,9.8124,0.12303],[-0.2562,10.0226,0.12306],[-0.2637,10.2315,0.12309],[-0.2703,10.4393,0.12315],
+    [-0.2762,10.6464,0.12323],[-0.2815,10.8534,0.12335],[-0.2862,11.0608,0.12350],[-0.2903,11.2688,0.12369],[-0.2941,11.4775,0.12390]]
+};
+const DAYS_PER_MONTH = 30.4375;
+const DEFAULT_BABY = null; // nessun dato personale nel sito pubblico
+const PCT = [{p:3,z:-1.881},{p:15,z:-1.036},{p:50,z:0},{p:85,z:1.036},{p:97,z:1.881}];
+
+function lms(sex, months){
+  const t = WHO[sex]; months = Math.max(0, Math.min(24, months));
+  const i = Math.min(23, Math.floor(months)), f = months - i;
+  return t[i].map((v,k)=> v + (t[i+1][k]-v)*f);
+}
+function weightAtZ(sex, months, z){ const [L,M,S]=lms(sex,months); return M*Math.pow(1+L*S*z,1/L); }
+function zOf(sex, months, kg){ const [L,M,S]=lms(sex,months); return (Math.pow(kg/M,L)-1)/(L*S); }
+function normCdf(z){ // Abramowitz-Stegun
+  const t=1/(1+0.2316419*Math.abs(z)), d=0.3989423*Math.exp(-z*z/2);
+  let p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));
+  return z>0?1-p:p;
+}
+
+/* ===== Stato e salvataggio ===== */
+const KEY='crescitaNeonato.v1';
+let storageOk = true;
+function load(){ try{ return JSON.parse(localStorage.getItem(KEY)); }catch(e){ storageOk=false; return null; } }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){ storageOk=false; showStorageWarn(); } }
+function showStorageWarn(){ document.getElementById('storageWarn').classList.toggle('hidden', storageOk); }
+let state = load() || {babies:[], current:null, range:'auto', lastBackup:null};
+try{ localStorage.setItem(KEY+'.test','1'); localStorage.removeItem(KEY+'.test'); }catch(e){ storageOk=false; }
+
+const $ = id => document.getElementById(id);
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today = () => { const d=new Date(); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); };
+const dayNum = s => Date.UTC(+s.slice(0,4), +s.slice(5,7)-1, +s.slice(8,10))/86400000;
+const fmtDate = s => s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4);
+const fmtG = g => Math.round(g).toLocaleString('it-IT')+' g';
+const fmtKg = g => (g/1000).toLocaleString('it-IT',{minimumFractionDigits:3,maximumFractionDigits:3})+' kg';
+const signed = (v,suf) => (v>0?'+':v<0?'−':'')+Math.abs(Math.round(v)).toLocaleString('it-IT')+suf;
+function fmtAge(days){
+  if(days<0) return '—';
+  if(days<14) return days+' gg';
+  if(days<92){ const w=Math.floor(days/7), d=days%7; return w+' sett'+(d?' '+d+' gg':''); }
+  const m=Math.floor(days/DAYS_PER_MONTH), d=Math.round(days-m*DAYS_PER_MONTH);
+  return m+' mesi'+(d?' '+d+' gg':'');
+}
+const baby = () => state.babies.find(b=>b.id===state.current);
+
+/* Punti: nascita + pesate, ordinati */
+function points(b){
+  const pts = [{date:b.birth, weight:b.birthWeight, note:'Nascita', birth:true}];
+  b.measures.forEach(m=>pts.push(m));
+  pts.sort((a,c)=> a.date<c.date?-1:a.date>c.date?1:(a.birth?-1:1));
+  pts.forEach(p=>{ p.days = dayNum(p.date)-dayNum(b.birth); p.months = p.days/DAYS_PER_MONTH;
+    p.z = p.months<=24 ? zOf(b.sex,p.months,p.weight/1000) : null; });
+  return pts;
+}
+
+/* ===== Render ===== */
+function render(){
+  showStorageWarn();
+  const sel=$('babySel');
+  sel.innerHTML = state.babies.length ? state.babies.map(b=>`<option value="${b.id}" ${b.id===state.current?'selected':''}>${esc(b.name||'Senza nome')}</option>`).join('')
+                                      : '<option>— nessun bambino —</option>';
+  sel.disabled = !state.babies.length;
+  $('lastBackup').textContent = state.lastBackup ? 'Ultimo backup: '+new Date(state.lastBackup).toLocaleString('it-IT') : 'Nessun backup ancora eseguito.';
+
+  const b = baby();
+  $('btnDelBaby').classList.toggle('hidden', !b);
+  $('profileTitle').textContent = b ? 'Dati del bambino' : 'Inserisci i dati del bambino per iniziare';
+  $('appTitle').textContent = '👶 ' + (b?.name ? 'Crescita di ' + b.name : 'Crescita Neonato');
+  const first = !b && !state.babies.length ? DEFAULT_BABY : null;
+  $('pName').value = b?.name || first?.name || ''; $('pSex').value = b?.sex || first?.sex || 'F';
+  $('pBirth').value = b?.birth || first?.birth || ''; $('pBW').value = b?.birthWeight || '';
+  $('mainArea').classList.toggle('hidden', !b);
+  if(!b) return;
+  if(!$('mDate').value) $('mDate').value = today();
+  const pts = points(b);
+  renderKpis(b, pts); renderTable(b, pts); renderChart(b, pts);
+  document.querySelectorAll('#chartRange button').forEach(x=>x.classList.toggle('on', x.dataset.r===String(state.range||'auto')));
+}
+
+function renderKpis(b, pts){
+  const last = pts[pts.length-1], ageNow = dayNum(today())-dayNum(b.birth);
+  const k = [];
+  k.push({l:'Età oggi', v:fmtAge(ageNow), s:'nato/a il '+fmtDate(b.birth)});
+  k.push({l:'Ultimo peso', v:fmtKg(last.weight), s:fmtDate(last.date)+' · '+fmtAge(last.days)});
+  k.push({l:'Dalla nascita', v:signed(last.weight-b.birthWeight,' g'), s:((last.weight/b.birthWeight-1)*100).toLocaleString('it-IT',{maximumFractionDigits:1})+'% rispetto a '+fmtG(b.birthWeight)});
+  if(last.z!=null){
+    const pc = normCdf(last.z)*100;
+    k.push({l:'Percentile OMS', v:(pc<1?'<1':pc>99?'>99':Math.round(pc))+'°', s:'z-score '+last.z.toLocaleString('it-IT',{maximumFractionDigits:2})});
+  }
+  // crescita settimanale ultime 2 settimane circa (dal punto più vicino a 14 gg prima)
+  if(pts.length>1){
+    let ref = pts[0];
+    for(const p of pts){ if(p!==last && last.days-p.days>=7) ref=p; }
+    if(ref===last) ref=pts[pts.length-2];
+    const dd = last.days-ref.days;
+    if(dd>0){ const gday=(last.weight-ref.weight)/dd;
+      k.push({l:'Crescita recente', v:signed(gday*7,' g/sett'), s:signed(gday,' g/giorno')+' dal '+fmtDate(ref.date)}); }
+  }
+  $('kpis').innerHTML = k.map(x=>`<div class="kpi"><div class="l">${x.l}</div><div class="v">${x.v}</div><div class="s">${esc(x.s)}</div></div>`).join('');
+
+  /* Avvisi */
+  const al = [];
+  const early = pts.filter(p=>p.days<=21);
+  const minP = early.reduce((a,p)=>p.weight<a.weight?p:a, pts[0]);
+  const loss = (b.birthWeight-minP.weight)/b.birthWeight*100;
+  if(loss>0){
+    const t = `Calo fisiologico massimo: ${loss.toLocaleString('it-IT',{maximumFractionDigits:1})}% (${fmtG(minP.weight)} a ${fmtAge(minP.days)}).`;
+    if(loss>10) al.push(['bad', t+' Supera il 10%: è opportuno sentire il pediatra.']);
+    else if(loss>7) al.push(['warn', t+' Tra 7% e 10%: da tenere sotto controllo (allattamento, pannolini bagnati).']);
+    else al.push(['ok', t+' Nella norma (entro il 7%).']);
+  }
+  const regained = pts.find(p=>!p.birth && p.days>minP.days && p.weight>=b.birthWeight) || pts.find(p=>!p.birth && p.weight>=b.birthWeight && loss<=0);
+  if(regained) al.push(['ok', `Peso di nascita recuperato a ${fmtAge(regained.days)} (${fmtDate(regained.date)}).`]);
+  else if(last.days>14) al.push(['bad', `Il peso di nascita non risulta ancora recuperato a ${fmtAge(last.days)} (atteso di norma entro 10–14 giorni).`]);
+  else if(pts.length>1) al.push(['warn', 'Peso di nascita non ancora recuperato (atteso di norma entro 10–14 giorni).']);
+
+  // ritmo di crescita vs riferimento indicativo
+  const kRec = k.find(x=>x.l==='Crescita recente');
+  if(kRec && last.days>14 && pts.length>2){
+    let ref = pts[0]; for(const p of pts){ if(p!==last && last.days-p.days>=7) ref=p; }
+    const dd=last.days-ref.days;
+    if(dd>=5 && ref.days>=10){
+      const wk=(last.weight-ref.weight)/dd*7, m=last.months;
+      const [lo,hi] = m<3?[150,250]: m<6?[90,150]: m<12?[50,100]:[25,60];
+      if(wk<lo*0.75) al.push(['warn', `Crescita recente ${Math.round(wk)} g/sett: sotto il valore orientativo per l'età (${lo}–${hi} g/sett).`]);
+      else if(wk>hi*1.4) al.push(['warn', `Crescita recente ${Math.round(wk)} g/sett: sopra il valore orientativo per l'età (${lo}–${hi} g/sett).`]);
+      else al.push(['ok', `Crescita recente ${Math.round(wk)} g/sett: in linea con il valore orientativo per l'età (${lo}–${hi} g/sett).`]);
+    }
+  }
+  // attraversamento percentili (dopo le prime 2 settimane)
+  const zs = pts.filter(p=>p.z!=null && p.days>=14);
+  if(zs.length>=2){
+    const peak = zs.slice(0,-1).reduce((a,p)=>p.z>a.z?p:a, zs[0]);
+    const drop = peak.z - zs[zs.length-1].z;
+    if(drop>=1.3) al.push(['warn', `Il peso è sceso di circa due linee di percentile rispetto a ${fmtAge(peak.days)}: da segnalare al pediatra.`]);
+  }
+  if(last.z!=null && (last.z<-2 || last.z>2)) al.push(['warn', `Il peso attuale è ${last.z<0?'sotto il 3°':'sopra il 97°'} percentile OMS.`]);
+  if(last.days>24*DAYS_PER_MONTH) al.push(['warn','Oltre i 24 mesi le curve di questa app non sono disponibili.']);
+  $('alerts').innerHTML = al.map(([c,t])=>`<div class="alert ${c}">${esc(t)}</div>`).join('');
+}
+
+function renderTable(b, pts){
+  let h = `<tr><th class="l">Data</th><th>Età</th><th>Peso</th><th>Variazione</th><th>Giorni</th><th>g/giorno</th><th>g/sett</th><th>vs nascita</th><th>Percentile</th><th class="l">Nota</th><th></th></tr>`;
+  const rows=[];
+  pts.forEach((p,i)=>{
+    const prev=pts[i-1]; let dv='',dd='',gd='',gw='';
+    if(prev){ const d=p.days-prev.days, w=p.weight-prev.weight;
+      dv=`<span class="${w>=0?'pos':'neg'}">${signed(w,' g')}</span>`; dd=d;
+      if(d>0){ gd=`<span class="${w>=0?'pos':'neg'}">${signed(w/d,'')}</span>`; gw=signed(w/d*7,''); } }
+    const vsb = p.birth?'': ((p.weight/b.birthWeight-1)*100).toLocaleString('it-IT',{maximumFractionDigits:1,signDisplay:'always'})+'%';
+    const pc = p.z==null?'—':(()=>{const v=normCdf(p.z)*100; return (v<1?'<1':v>99?'>99':Math.round(v))+'°';})();
+    rows.push(`<tr><td class="l">${fmtDate(p.date)}</td><td>${fmtAge(p.days)}</td><td><b>${fmtG(p.weight)}</b></td><td>${dv}</td><td>${dd}</td><td>${gd}</td><td>${gw}</td><td>${vsb}</td><td>${pc}</td>
+      <td class="l">${esc(p.note||'')}</td><td>${p.birth?'':`<button class="link" title="Elimina" onclick="delMeasure('${p.id}')">✕</button>`}</td></tr>`);
+  });
+  $('tbl').innerHTML = h + rows.reverse().join('');
+}
+
+function renderChart(b, pts){
+  const narrow = ($('chart').clientWidth||960) < 600;
+  const fs=narrow?17:12, W=narrow?520:960, H=narrow?480:440, pl=narrow?46:58, pr=narrow?38:46, pt=14, pb=40;
+  const lastM = pts[pts.length-1].months;
+  let xMax = state.range==='auto'||!state.range ? Math.min(24, Math.max(1, Math.ceil(lastM*1.25+0.25))) : +state.range;
+  const vis = pts.filter(p=>p.months<=xMax+1e-9);
+  let yMin = Math.min(weightAtZ(b.sex,0,-2.3), ...vis.map(p=>p.weight/1000));
+  let yMax = Math.max(weightAtZ(b.sex,xMax,2.3), ...vis.map(p=>p.weight/1000));
+  const yStep = (yMax-yMin)>6?1:(yMax-yMin)>2.5?0.5:0.25;
+  yMin = Math.floor(yMin/yStep)*yStep; yMax=Math.ceil(yMax/yStep)*yStep;
+  const X = m => pl + m/xMax*(W-pl-pr), Y = kg => pt + (yMax-kg)/(yMax-yMin)*(H-pt-pb);
+  const N=120, xs=[...Array(N+1)].map((_,i)=>i/N*xMax);
+  const curve = z => xs.map(m=>[X(m),Y(weightAtZ(b.sex,m,z))]);
+  const path = arr => 'M'+arr.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join('L');
+  const band = (z1,z2) => path(curve(z1).concat(curve(z2).reverse()))+'Z';
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Curva di crescita">`;
+  // griglia Y
+  for(let v=yMin; v<=yMax+1e-9; v+=yStep){
+    s+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="#eef1f6"/>`;
+    s+=`<text x="${pl-8}" y="${Y(v)+4}" text-anchor="end" font-size="${fs}" fill="#6b7689">${v.toLocaleString('it-IT')}</text>`;
+  }
+  // griglia X: settimane se ≤ 3 mesi, altrimenti mesi
+  if(xMax<=3){
+    const maxW = Math.floor(xMax*DAYS_PER_MONTH/7);
+    for(let w=0; w<=maxW; w++){ const m=w*7/DAYS_PER_MONTH;
+      s+=`<line x1="${X(m)}" x2="${X(m)}" y1="${pt}" y2="${H-pb}" stroke="#eef1f6"/>`;
+      if(xMax<=1.5 || w%2===0) s+=`<text x="${X(m)}" y="${H-pb+16}" text-anchor="middle" font-size="${fs}" fill="#6b7689">${w}</text>`; }
+    s+=`<text x="${(pl+W-pr)/2}" y="${H-4}" text-anchor="middle" font-size="${fs}" fill="#6b7689">età (settimane)</text>`;
+  } else {
+    const st = xMax>12?2:1;
+    for(let m=0;m<=xMax;m++){ s+=`<line x1="${X(m)}" x2="${X(m)}" y1="${pt}" y2="${H-pb}" stroke="#eef1f6"/>`;
+      if(m%st===0) s+=`<text x="${X(m)}" y="${H-pb+16}" text-anchor="middle" font-size="${fs}" fill="#6b7689">${m}</text>`; }
+    s+=`<text x="${(pl+W-pr)/2}" y="${H-4}" text-anchor="middle" font-size="${fs}" fill="#6b7689">età (mesi)</text>`;
+  }
+  s+=`<text x="14" y="${(pt+H-pb)/2}" transform="rotate(-90 14 ${(pt+H-pb)/2})" text-anchor="middle" font-size="${fs}" fill="#6b7689">peso (kg)</text>`;
+  // bande percentili
+  s+=`<path d="${band(-1.881,1.881)}" fill="var(--band-outer)"/>`;
+  s+=`<path d="${band(-1.036,1.036)}" fill="var(--band-inner)"/>`;
+  PCT.forEach(p=>{
+    s+=`<path d="${path(curve(p.z))}" fill="none" stroke="${p.p===50?'var(--p50)':'#8fa9cc'}" stroke-width="${p.p===50?2:1}" ${p.p===50?'':'stroke-dasharray="4 3"'}/>`;
+    const ye=Y(weightAtZ(b.sex,xMax,p.z));
+    s+=`<text x="${W-pr+4}" y="${ye+4}" font-size="${fs-1}" fill="#55698a">${p.p}°</text>`;
+  });
+  s+=`<rect x="${pl}" y="${pt}" width="${W-pl-pr}" height="${H-pt-pb}" fill="none" stroke="#c9d2df"/>`;
+  // pesate
+  if(vis.length>1) s+=`<path d="${path(vis.map(p=>[X(p.months),Y(p.weight/1000)]))}" fill="none" stroke="var(--point)" stroke-width="2"/>`;
+  vis.forEach(p=>{
+    s+=`<circle cx="${X(p.months)}" cy="${Y(p.weight/1000)}" r="4.5" fill="${p.birth?'#fff':'var(--point)'}" stroke="var(--point)" stroke-width="2"><title>${fmtDate(p.date)} · ${fmtAge(p.days)}\n${fmtG(p.weight)}${p.note?'\n'+esc(p.note):''}</title></circle>`;
+  });
+  s+='</svg>';
+  $('chart').innerHTML = s;
+}
+
+/* ===== Azioni ===== */
+$('btnNew').onclick = ()=>{ state.current=null; render(); $('pName').focus(); };
+$('babySel').onchange = e=>{ state.current=e.target.value; save(); render(); };
+$('btnSaveProfile').onclick = ()=>{
+  const name=$('pName').value.trim(), sex=$('pSex').value, birth=$('pBirth').value, bw=+$('pBW').value;
+  if(!birth) return alert('Inserisci la data di nascita.');
+  if(birth>today()) return alert('La data di nascita è nel futuro.');
+  if(!(bw>=300 && bw<=7000)) return alert('Inserisci il peso alla nascita in grammi (es. 3250).');
+  let b=baby();
+  if(b){ if(b.measures.some(m=>m.date<birth)) return alert('Ci sono pesate precedenti a questa data di nascita.');
+    Object.assign(b,{name,sex,birth,birthWeight:bw}); }
+  else { b={id:uid(),name,sex,birth,birthWeight:bw,measures:[]}; state.babies.push(b); state.current=b.id; }
+  save(); render();
+};
+$('btnDelBaby').onclick = ()=>{
+  const b=baby(); if(!b) return;
+  if(!confirm(`Eliminare definitivamente "${b.name||'Senza nome'}" e tutte le sue ${b.measures.length} pesate?\nConsiglio: fai prima un Backup.`)) return;
+  state.babies=state.babies.filter(x=>x!==b); state.current=state.babies[0]?.id||null; save(); render();
+};
+$('btnAdd').onclick = ()=>{
+  const b=baby(), date=$('mDate').value, w=+$('mWeight').value, note=$('mNote').value.trim();
+  if(!date) return alert('Inserisci la data.');
+  if(date<b.birth) return alert('La data è precedente alla nascita.');
+  if(date>today()) return alert('La data è nel futuro.');
+  if(!(w>=300 && w<=30000)) return alert('Inserisci il peso in grammi (es. 3450).');
+  const pts=points(b), prev=[...pts].reverse().find(p=>p.date<=date);
+  if(prev && Math.abs(w-prev.weight)/prev.weight>0.25 && (dayNum(date)-dayNum(prev.date))<30
+     && !confirm(`Il peso differisce molto dalla pesata del ${fmtDate(prev.date)} (${fmtG(prev.weight)}). Confermi ${fmtG(w)}?`)) return;
+  b.measures.push({id:uid(),date,weight:w,note});
+  save(); $('mWeight').value=''; $('mNote').value=''; render(); $('mWeight').focus();
+};
+$('mWeight').addEventListener('keydown',e=>{ if(e.key==='Enter') $('btnAdd').click(); });
+window.delMeasure = id=>{
+  const b=baby(), m=b.measures.find(x=>x.id===id);
+  if(m && confirm(`Eliminare la pesata del ${fmtDate(m.date)} (${fmtG(m.weight)})?`)){ b.measures=b.measures.filter(x=>x.id!==id); save(); render(); }
+};
+document.querySelectorAll('#chartRange button').forEach(btn=>btn.onclick=()=>{ state.range=btn.dataset.r; save(); render(); });
+
+async function download(name, text, type){
+  // Su iPhone apre il menu Condividi (Salva su File, WhatsApp, Mail…)
+  try{
+    const file = new File([text], name, {type});
+    if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name}); return; }
+  }catch(e){ if(e.name==='AbortError') return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500);
+}
+$('btnExport').onclick = ()=>{
+  state.lastBackup=new Date().toISOString(); save();
+  download(`crescita-neonato-backup-${today()}.json`, JSON.stringify({app:'crescita-neonato',version:1,babies:state.babies},null,2),'application/json');
+  render();
+};
+$('btnImport').onclick = ()=>$('fileImport').click();
+$('fileImport').onchange = e=>{
+  const f=e.target.files[0]; if(!f) return;
+  f.text().then(t=>{
+    const d=JSON.parse(t);
+    if(!Array.isArray(d.babies)) throw new Error('formato');
+    if(!confirm(`Il backup contiene ${d.babies.length} bambino/i. Sostituire i dati attuali?`)) return;
+    state.babies=d.babies; state.current=d.babies[0]?.id||null; save(); render();
+  }).catch(()=>alert('File non valido.')).finally(()=>e.target.value='');
+};
+$('btnCsv').onclick = ()=>{
+  const b=baby(), pts=points(b);
+  const lines=['Data;Età (giorni);Peso (g);Variazione (g);g/giorno;Percentile OMS;Nota'];
+  pts.forEach((p,i)=>{ const pr=pts[i-1], d=pr?p.days-pr.days:0, w=pr?p.weight-pr.weight:'';
+    lines.push([fmtDate(p.date),p.days,p.weight,w,(pr&&d>0)?(w/d).toFixed(1).replace('.',','):'',
+      p.z==null?'':Math.round(normCdf(p.z)*100),'"'+String(p.note||'').replace(/"/g,'""')+'"'].join(';')); });
+  download(`pesate-${(b.name||'bambino').replace(/\W+/g,'_')}-${today()}.csv`, '﻿'+lines.join('\r\n'),'text/csv');
+};
+$('btnPrint').onclick = ()=>window.print();
+
+/* stampa: nasconde i controlli */
+const ps=document.createElement('style');
+ps.textContent='@media print{header button,header select,#btnAdd,.chartbar,#profileCard .row button,.link,#btnCsv,#btnPrint,.card:has(#mDate){display:none!important} body{background:#fff} .card{break-inside:avoid;border:none}}';
+document.head.appendChild(ps);
+
+if(!state.current && state.babies[0]) state.current=state.babies[0].id;
+render();
+let lastNarrow = ($('chart').clientWidth||960) < 600;
+addEventListener('resize', ()=>{ const n=($('chart').clientWidth||960)<600; if(n!==lastNarrow){ lastNarrow=n; if(baby()) render(); } });
+
+/* App offline + memoria persistente */
+if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+</script>
+</body>
+</html>
