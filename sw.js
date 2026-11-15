@@ -1,6 +1,6 @@
 // Service worker: rende l'app utilizzabile anche senza connessione.
 // Cambiare VERSION quando si pubblica una nuova versione dei file.
-const VERSION = 'crescita-v3';
+const VERSION = 'crescita-v4';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

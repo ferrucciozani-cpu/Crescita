@@ -103,6 +103,9 @@ label.chk{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var
 label.chk input{width:20px;height:20px;padding:0}
 .chartbar .sep{width:12px}
 td.sub{color:var(--muted)}
+button.link.edit{color:var(--navy)}
+td.acts button{font-size:17px;padding:4px 8px}
+#formCard.editing{border:2px solid var(--warn);background:#fffaf0}
 </style>
   <!-- Profilo -->
   <section class="card" id="profileCard">
@@ -135,8 +138,8 @@ td.sub{color:var(--muted)}
     </section>
 
     <!-- Nuova misurazione -->
-    <section class="card">
-      <h2>Nuova misurazione</h2>
+    <section class="card" id="formCard">
+      <h2 id="formTitle">Nuova misurazione</h2>
       <div class="row">
         <label>Data<input type="date" id="mDate"></label>
         <label>Peso (g)<input type="number" id="mWeight" inputmode="numeric" min="300" max="30000" step="1" style="width:130px" placeholder="es. 3450"></label>
@@ -144,6 +147,7 @@ td.sub{color:var(--muted)}
         <label>Latte artificiale aggiunto (ml/giorno)<input type="number" id="mFormula" inputmode="numeric" min="0" max="2000" step="1" style="width:130px" placeholder="es. 120"></label>
         <label style="flex:1;min-width:200px">Nota (facoltativa)<input id="mNote" placeholder="es. dopo la poppata, visita pediatra…"></label>
         <button id="btnAdd">Aggiungi</button>
+        <button id="btnCancelEdit" class="sec hidden">Annulla</button>
       </div>
       <div class="hint">Compila solo i campi che ti servono (peso, lunghezza, latte o una combinazione). La lunghezza si misura sdraiata, di solito dal pediatra. Per il latte artificiale indica il totale aggiunto nella giornata (0 = solo latte materno).</div>
     </section>
@@ -425,7 +429,8 @@ function renderTable(b, pts){
     rows.push(`<tr><td class="l">${fmtDate(p.date)}</td><td>${fmtAge(p.days)}</td>${corr>0?`<td class="sub">${fmtAge(p.cdays)}</td>`:''}
       <td><b>${p.weight?fmtG(p.weight):''}</b></td><td>${dv}</td><td>${gd}</td><td>${gw}</td><td>${p.weight?pctTxt(p.zW):''}</td>
       <td><b>${p.length?fmtCm(p.length):''}</b></td><td>${p.length?pctTxt(p.zL):''}</td><td>${p.formula!=null?Math.round(p.formula)+' ml':''}</td>
-      <td class="l">${esc(p.note||'')}</td><td>${p.birth?'':`<button class="link" title="Elimina" onclick="delMeasure('${p.id}')">✕</button>`}</td></tr>`);
+      <td class="l">${esc(p.note||'')}</td><td class="acts">${p.birth?'<button class="link edit" title="Modifica i dati di nascita" onclick="$(\'profileCard\').scrollIntoView({behavior:\'smooth\'})">✎</button>'
+        :`<button class="link edit" title="Modifica" onclick="editMeasure('${p.id}')">✎</button><button class="link" title="Elimina" onclick="delMeasure('${p.id}')">✕</button>`}</td></tr>`);
   });
   $('tbl').innerHTML = h + rows.reverse().join('');
 }
@@ -497,8 +502,8 @@ function renderChart(b, pts){
 fillGaSelects();
 const syncCorr = ()=>{ const ga=(+$('pGaW').value)*7+(+$('pGaD').value); $('pCorr').checked = ga<TERM; };
 $('pGaW').onchange = syncCorr; $('pGaD').onchange = syncCorr;
-$('btnNew').onclick = ()=>{ state.current=null; render(); $('pName').focus(); };
-$('babySel').onchange = e=>{ state.current=e.target.value; save(); render(); };
+$('btnNew').onclick = ()=>{ resetForm(); state.current=null; render(); $('pName').focus(); };
+$('babySel').onchange = e=>{ resetForm(); state.current=e.target.value; save(); render(); };
 $('btnSaveProfile').onclick = ()=>{
   const name=$('pName').value.trim(), sex=$('pSex').value, birth=$('pBirth').value, bw=+$('pBW').value, bl=num($('pBL').value);
   const gaWeeks=+$('pGaW').value, gaDays=+$('pGaD').value, corrected=$('pCorr').checked;
@@ -527,20 +532,50 @@ $('btnAdd').onclick = ()=>{
   if(f!=null && !(f>=0 && f<=2000)) return alert('Inserisci il latte artificiale in ml al giorno (es. 120, oppure 0).');
   if(w!=null && !(w>=300 && w<=30000)) return alert('Inserisci il peso in grammi (es. 3450).');
   if(l!=null && !(l>=25 && l<=130)) return alert('Inserisci la lunghezza in centimetri (es. 52,5).');
-  const pts=points(b);
+  const pts=points(b).filter(p=>p.birth || p.id!==editingId);  // in modifica non confronta la misura con sé stessa
   const prevW=[...pts].reverse().find(p=>p.weight && p.date<=date), prevL=[...pts].reverse().find(p=>p.length && p.date<=date);
   if(w!=null && prevW && Math.abs(w-prevW.weight)/prevW.weight>0.25 && (dayNum(date)-dayNum(prevW.date))<30
      && !confirm(`Il peso differisce molto da quello del ${fmtDate(prevW.date)} (${fmtG(prevW.weight)}). Confermi ${fmtG(w)}?`)) return;
   if(l!=null && prevL && (l<prevL.length-0.5 || (l-prevL.length>6 && (dayNum(date)-dayNum(prevL.date))<30))
      && !confirm(`La lunghezza è ${l<prevL.length?'inferiore a':'molto maggiore di'} quella del ${fmtDate(prevL.date)} (${fmtCm(prevL.length)}). Confermi ${fmtCm(l)}?`)) return;
-  b.measures.push({id:uid(),date,weight:w,length:l,formula:f,note});
-  save(); $('mWeight').value=''; $('mLength').value=''; $('mFormula').value=''; $('mNote').value=''; render(); $('mWeight').focus();
+  const m = editingId && b.measures.find(x=>x.id===editingId);
+  if(m) Object.assign(m,{date,weight:w,length:l,formula:f,note});
+  else b.measures.push({id:uid(),date,weight:w,length:l,formula:f,note});
+  const wasEditing = !!m;
+  save(); resetForm(); render();
+  if(wasEditing) $('tbl').scrollIntoView({behavior:'smooth', block:'start'}); else $('mWeight').focus();
 };
+/* Modifica di una misurazione: carica i valori nel modulo sopra */
+let editingId = null;
+function resetForm(){
+  editingId = null;
+  ['mWeight','mLength','mFormula','mNote'].forEach(id=>$(id).value='');
+  $('mDate').value = today();
+  $('formTitle').textContent = 'Nuova misurazione';
+  $('btnAdd').textContent = 'Aggiungi';
+  $('btnCancelEdit').classList.add('hidden');
+  $('formCard').classList.remove('editing');
+}
+window.editMeasure = id=>{
+  const m = baby()?.measures.find(x=>x.id===id); if(!m) return;
+  editingId = id;
+  $('mDate').value = m.date;
+  $('mWeight').value = m.weight ?? '';
+  $('mLength').value = m.length!=null ? String(m.length).replace('.',',') : '';
+  $('mFormula').value = m.formula ?? '';
+  $('mNote').value = m.note || '';
+  $('formTitle').textContent = 'Modifica misurazione del '+fmtDate(m.date);
+  $('btnAdd').textContent = 'Salva modifiche';
+  $('btnCancelEdit').classList.remove('hidden');
+  $('formCard').classList.add('editing');
+  $('formCard').scrollIntoView({behavior:'smooth', block:'start'});
+};
+$('btnCancelEdit').onclick = resetForm;
 ['mWeight','mLength','mFormula'].forEach(id=>$(id).addEventListener('keydown',e=>{ if(e.key==='Enter') $('btnAdd').click(); }));
 window.delMeasure = id=>{
   const b=baby(), m=b.measures.find(x=>x.id===id); if(!m) return;
   const what=[m.weight?fmtG(m.weight):'', m.length?fmtCm(m.length):'', m.formula!=null?'latte art. '+m.formula+' ml':''].filter(Boolean).join(', ');
-  if(confirm(`Eliminare la misurazione del ${fmtDate(m.date)} (${what})?`)){ b.measures=b.measures.filter(x=>x.id!==id); save(); render(); }
+  if(confirm(`Eliminare la misurazione del ${fmtDate(m.date)} (${what})?`)){ b.measures=b.measures.filter(x=>x.id!==id); if(editingId===id) resetForm(); save(); render(); }
 };
 document.querySelectorAll('#chartRange button').forEach(btn=>btn.onclick=()=>{ state.range=btn.dataset.r; save(); render(); });
 document.querySelectorAll('#chartKind button').forEach(btn=>btn.onclick=()=>{ state.chartKind=btn.dataset.k; save(); render(); });
