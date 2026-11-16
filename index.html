@@ -85,6 +85,7 @@ button{touch-action:manipulation}
 <body>
 <header>
   <h1 id="appTitle">👶 Crescita Neonato</h1>
+  <span id="syncPill" class="pill hidden"></span>
   <select id="babySel" title="Bambino"></select>
   <button id="btnNew">+ Nuovo bambino</button>
   <button id="btnExport" title="Salva una copia di tutti i dati in un file">Backup</button>
@@ -106,7 +107,24 @@ td.sub{color:var(--muted)}
 button.link.edit{color:var(--navy)}
 td.acts button{font-size:17px;padding:4px 8px}
 #formCard.editing{border:2px solid var(--warn);background:#fffaf0}
+.pill{font-size:12px;padding:3px 10px;border-radius:999px;background:#3d5f8c;color:#fff;white-space:nowrap}
+.pill.ok{background:#1e8a5a} .pill.wait{background:#c98a00} .pill.off{background:#6b7689} .pill.bad{background:#c0392b}
+body.locked header select, body.locked header button, body.locked #profileCard, body.locked #mainArea{display:none!important}
+#accountBox{margin-top:8px}
 </style>
+  <!-- Accesso (solo se la sincronizzazione è attiva) -->
+  <section class="card hidden" id="loginCard">
+    <h2>Accedi</h2>
+    <div class="hint" style="margin:0 0 12px">I dati sono condivisi tra i dispositivi dei genitori. Accedi con l'email e la password create per l'app.</div>
+    <div class="row">
+      <label style="flex:1 1 220px">Email<input type="email" id="lEmail" autocomplete="username" autocapitalize="off"></label>
+      <label style="flex:1 1 180px">Password<input type="password" id="lPass" autocomplete="current-password"></label>
+      <button id="btnLogin">Accedi</button>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="sec" id="btnReset">Password dimenticata</button></div>
+    <div id="loginMsg" class="alert hidden" style="margin-top:12px"></div>
+  </section>
+
   <!-- Profilo -->
   <section class="card" id="profileCard">
     <h2 id="profileTitle">Dati del bambino</h2>
@@ -191,9 +209,11 @@ td.acts button{font-size:17px;padding:4px 8px}
     I dati restano solo su questo dispositivo. Fai un <b>Backup</b> ogni tanto (puoi salvarlo in File/iCloud o inviarlo per WhatsApp o email).<br>
     Percentili: WHO Child Growth Standards, peso e lunghezza per età 0–24 mesi. Strumento indicativo: non sostituisce la valutazione del pediatra.
     <div id="lastBackup"></div>
+    <div id="accountBox"></div>
   </div>
 </main>
 
+<script src="firebase-config.js"></script>
 <script>
 /* ===== Tabelle OMS (L, M, S) per età in mesi 0–24 ===== */
 // Peso per età (kg)
@@ -266,6 +286,19 @@ function fmtAge(days){
   return m+' mesi'+(d?' '+d+' gg':'');
 }
 const baby = () => state.babies.find(b=>b.id===state.current);
+
+/* Archivio: in modalità locale basta save(); con la sincronizzazione attiva
+   cloud.js sostituisce queste funzioni con le scritture su Firebase. */
+const store = { cloud:false, authKnown:false, user:null, status:'', statusKind:'',
+  saveBaby(b){}, deleteBaby(b){}, saveMeasure(b,m){}, deleteMeasure(b,id){}, replaceAll(list){}, logout(){} };
+function renderStatus(){
+  const p=$('syncPill');
+  if(!store.cloud){ p.classList.add('hidden'); $('accountBox').innerHTML=''; return; }
+  p.classList.remove('hidden'); p.textContent=store.status||''; p.className='pill '+(store.statusKind||'');
+  $('accountBox').innerHTML = store.user ? `Collegato come <b>${esc(store.user.email)}</b> · <button class="link edit" id="btnLogout">Esci</button>` : '';
+  if(store.user) $('btnLogout').onclick = ()=>store.logout();
+}
+window.app = { get state(){ return state; }, store, render, renderStatus, save, $, esc };
 const gaDaysOf = b => (b.gaWeeks??40)*7 + (b.gaDays??0);
 const gaTxt = b => (b.gaWeeks??40)+'+'+(b.gaDays??0);
 // giorni da sottrarre all'età per ottenere l'età corretta
@@ -293,6 +326,11 @@ function fillGaSelects(){
 }
 function render(){
   showStorageWarn();
+  renderStatus();
+  const locked = store.cloud && store.authKnown && !store.user;   // serve l'accesso
+  document.body.classList.toggle('locked', locked);
+  $('loginCard').classList.toggle('hidden', !locked);
+  if(locked) return;
   const sel=$('babySel');
   sel.innerHTML = state.babies.length ? state.babies.map(b=>`<option value="${b.id}" ${b.id===state.current?'selected':''}>${esc(b.name||'Senza nome')}</option>`).join('')
                                       : '<option>— nessun bambino —</option>';
@@ -516,12 +554,13 @@ $('btnSaveProfile').onclick = ()=>{
   if(b){ if(b.measures.some(m=>m.date<birth)) return alert('Ci sono misurazioni precedenti a questa data di nascita.');
     Object.assign(b,data); }
   else { b={id:uid(),...data,measures:[]}; state.babies.push(b); state.current=b.id; }
+  store.saveBaby(b);
   save(); render();
 };
 $('btnDelBaby').onclick = ()=>{
   const b=baby(); if(!b) return;
   if(!confirm(`Eliminare definitivamente "${b.name||'Senza nome'}" e tutte le sue ${b.measures.length} misurazioni?\nConsiglio: fai prima un Backup.`)) return;
-  state.babies=state.babies.filter(x=>x!==b); state.current=state.babies[0]?.id||null; save(); render();
+  state.babies=state.babies.filter(x=>x!==b); state.current=state.babies[0]?.id||null; store.deleteBaby(b); save(); render();
 };
 $('btnAdd').onclick = ()=>{
   const b=baby(), date=$('mDate').value, w=num($('mWeight').value), l=num($('mLength').value), f=num($('mFormula').value), note=$('mNote').value.trim();
@@ -539,8 +578,10 @@ $('btnAdd').onclick = ()=>{
   if(l!=null && prevL && (l<prevL.length-0.5 || (l-prevL.length>6 && (dayNum(date)-dayNum(prevL.date))<30))
      && !confirm(`La lunghezza è ${l<prevL.length?'inferiore a':'molto maggiore di'} quella del ${fmtDate(prevL.date)} (${fmtCm(prevL.length)}). Confermi ${fmtCm(l)}?`)) return;
   const m = editingId && b.measures.find(x=>x.id===editingId);
+  let saved = m;
   if(m) Object.assign(m,{date,weight:w,length:l,formula:f,note});
-  else b.measures.push({id:uid(),date,weight:w,length:l,formula:f,note});
+  else { saved={id:uid(),date,weight:w,length:l,formula:f,note}; b.measures.push(saved); }
+  store.saveMeasure(b, saved);
   const wasEditing = !!m;
   save(); resetForm(); render();
   if(wasEditing) $('tbl').scrollIntoView({behavior:'smooth', block:'start'}); else $('mWeight').focus();
@@ -575,7 +616,7 @@ $('btnCancelEdit').onclick = resetForm;
 window.delMeasure = id=>{
   const b=baby(), m=b.measures.find(x=>x.id===id); if(!m) return;
   const what=[m.weight?fmtG(m.weight):'', m.length?fmtCm(m.length):'', m.formula!=null?'latte art. '+m.formula+' ml':''].filter(Boolean).join(', ');
-  if(confirm(`Eliminare la misurazione del ${fmtDate(m.date)} (${what})?`)){ b.measures=b.measures.filter(x=>x.id!==id); if(editingId===id) resetForm(); save(); render(); }
+  if(confirm(`Eliminare la misurazione del ${fmtDate(m.date)} (${what})?`)){ b.measures=b.measures.filter(x=>x.id!==id); store.deleteMeasure(b,id); if(editingId===id) resetForm(); save(); render(); }
 };
 document.querySelectorAll('#chartRange button').forEach(btn=>btn.onclick=()=>{ state.range=btn.dataset.r; save(); render(); });
 document.querySelectorAll('#chartKind button').forEach(btn=>btn.onclick=()=>{ state.chartKind=btn.dataset.k; save(); render(); });
@@ -600,8 +641,8 @@ $('fileImport').onchange = e=>{
   f.text().then(t=>{
     const d=JSON.parse(t);
     if(!Array.isArray(d.babies)) throw new Error('formato');
-    if(!confirm(`Il backup contiene ${d.babies.length} bambino/i. Sostituire i dati attuali?`)) return;
-    state.babies=d.babies; state.current=d.babies[0]?.id||null; save(); render();
+    if(!confirm(`Il backup contiene ${d.babies.length} bambino/i. Sostituire i dati attuali${store.cloud?' su tutti i dispositivi collegati':''}?`)) return;
+    state.babies=d.babies; state.current=d.babies[0]?.id||null; store.replaceAll(d.babies); save(); render();
   }).catch(()=>alert('File non valido.')).finally(()=>e.target.value='');
 };
 $('btnCsv').onclick = ()=>{
@@ -626,6 +667,20 @@ addEventListener('resize', ()=>{ const n=($('chart').clientWidth||960)<600; if(n
 /* App offline + memoria persistente */
 if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')) navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+</script>
+<!-- Sincronizzazione tra dispositivi: attiva solo se firebase-config.js contiene la configurazione -->
+<script type="module">
+if (window.FIREBASE_CONFIG) {
+  const { store, render } = window.app;
+  store.cloud = true; store.status = 'Connessione…'; store.statusKind = 'wait'; render();
+  try {
+    const [{ makeAdapter }, { startCloud }] = await Promise.all([import('./firebase-adapter.js'), import('./cloud.js')]);
+    startCloud(makeAdapter(window.FIREBASE_CONFIG));
+  } catch (e) {
+    console.error(e);
+    store.status = 'Non sincronizzato (offline)'; store.statusKind = 'off'; render();
+  }
+}
 </script>
 </body>
 </html>
